@@ -3,6 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <title>URLと名前の保存</title>
+    <style>
+        /* 編集ウィンドウのスタイル */
+        .edit-window {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+
+        /* 背景を薄暗くするスタイル */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
     <h1>URLと名前の保存</h1>
@@ -18,6 +44,21 @@
     <h2>保存された一覧</h2>
     <ul id="list">
     </ul>
+
+    <!-- 編集ウィンドウ -->
+    <div class="overlay"></div>
+    <div class="edit-window">
+        <form id="editForm">
+            <label for="editUrl">URL:</label>
+            <input type="text" id="editUrl" name="editUrl" required>
+            <br>
+            <label for="editName">名前:</label>
+            <input type="text" id="editName" name="editName" required>
+            <br>
+            <input type="button" value="キャンセル" id="cancelEdit">
+            <input type="submit" value="編集完了">
+        </form>
+    </div>
 
     <script>
         // Cookieを取得する関数
@@ -74,6 +115,29 @@
             });
             listItem.appendChild(deleteButton);
 
+            // 編集ボタンを追加
+            let editButton = document.createElement('button');
+            editButton.textContent = '編集';
+            editButton.addEventListener('click', function () {
+                document.getElementById('editUrl').value = url;
+                document.getElementById('editName').value = name;
+                document.querySelector('.edit-window').style.display = 'block';
+                document.querySelector('.overlay').style.display = 'block';
+
+                document.getElementById('editForm').onsubmit = function (e) {
+                    e.preventDefault();
+                    let newUrl = document.getElementById('editUrl').value;
+                    let newName = document.getElementById('editName').value;
+                    deleteCookie(name);
+                    setCookie(newName, newUrl, 365);
+                    link.href = newUrl;
+                    link.textContent = `${newName}: ${newUrl}`;
+                    document.querySelector('.edit-window').style.display = 'none';
+                    document.querySelector('.overlay').style.display = 'none';
+                };
+            });
+            listItem.appendChild(editButton);
+
             list.appendChild(listItem);
 
             // フォームをリセット
@@ -102,9 +166,38 @@
                     });
                     listItem.appendChild(deleteButton);
 
+                    // 編集ボタンを追加
+                    let editButton = document.createElement('button');
+                    editButton.textContent = '編集';
+                    editButton.addEventListener('click', function () {
+                        document.getElementById('editUrl').value = url;
+                        document.getElementById('editName').value = name;
+                        document.querySelector('.edit-window').style.display = 'block';
+                        document.querySelector('.overlay').style.display = 'block';
+
+                        document.getElementById('editForm').onsubmit = function (e) {
+                            e.preventDefault();
+                            let newUrl = document.getElementById('editUrl').value;
+                            let newName = document.getElementById('editName').value;
+                            deleteCookie(name);
+                            setCookie(newName, newUrl, 365);
+                            link.href = newUrl;
+                            link.textContent = `${newName}: ${newUrl}`;
+                            document.querySelector('.edit-window').style.display = 'none';
+                            document.querySelector('.overlay').style.display = 'none';
+                        };
+                    });
+                    listItem.appendChild(editButton);
+
                     list.appendChild(listItem);
                 }
             }
+        });
+
+        // 編集ウィンドウのキャンセルボタンの処理
+        document.getElementById('cancelEdit').addEventListener('click', function () {
+            document.querySelector('.edit-window').style.display = 'none';
+            document.querySelector('.overlay').style.display = 'none';
         });
     </script>
 </body>

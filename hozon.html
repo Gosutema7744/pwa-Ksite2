@@ -54,7 +54,11 @@
 
             // リストに表示
             let listItem = document.createElement('li');
-            listItem.textContent = `${name}: ${url}`;
+            let link = document.createElement('a');
+            link.href = url;
+            link.textContent = `${name}: ${url}`;
+            link.target = "_blank";
+            listItem.appendChild(link);
             list.appendChild(listItem);
 
             // フォームをリセット
@@ -67,7 +71,11 @@
             let list = document.getElementById('list');
             for (let [name, url] of Object.entries(cookies)) {
                 let listItem = document.createElement('li');
-                listItem.textContent = `${name}: ${url}`;
+                let link = document.createElement('a');
+                link.href = url;
+                link.textContent = `${name}: ${url}`;
+                link.target = "_blank";
+                listItem.appendChild(link);
                 list.appendChild(listItem);
             }
         });

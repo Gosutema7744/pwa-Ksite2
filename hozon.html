@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>URLと名前の保存</title>
+</head>
+<body>
+    <h1>URLと名前の保存</h1>
+    <form id="urlForm">
+        <label for="url">URL:</label>
+        <input type="text" id="url" name="url" required>
+        <br>
+        <label for="name">名前:</label>
+        <input type="text" id="name" name="name" required>
+        <br>
+        <input type="submit" value="保存">
+    </form>
+    <h2>保存された一覧</h2>
+    <ul id="list">
+    </ul>
+
+    <script>
+        // Cookieを取得する関数
+        function getCookies() {
+            let cookies = document.cookie.split(';');
+            let cookieObj = {};
+            cookies.forEach(cookie => {
+                let [key, value] = cookie.split('=');
+                cookieObj[key.trim()] = decodeURIComponent(value);
+            });
+            return cookieObj;
+        }
+
+        // Cookieをセットする関数
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                let date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/";
+        }
+
+        // フォームが送信されたときの処理
+        document.getElementById('urlForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            let url = document.getElementById('url').value;
+            let name = document.getElementById('name').value;
+            let list = document.getElementById('list');
+
+            // Cookieに保存
+            setCookie(name, url, 365);
+
+            // リストに表示
+            let listItem = document.createElement('li');
+            listItem.textContent = `${name}: ${url}`;
+            list.appendChild(listItem);
+
+            // フォームをリセット
+            document.getElementById('urlForm').reset();
+        });
+
+        // ページ読み込み時にCookieをリストに表示
+        window.addEventListener('load', function () {
+            let cookies = getCookies();
+            let list = document.getElementById('list');
+            for (let [name, url] of Object.entries(cookies)) {
+                let listItem = document.createElement('li');
+                listItem.textContent = `${name}: ${url}`;
+                list.appendChild(listItem);
+            }
+        });
+    </script>
+</body>
+</html>

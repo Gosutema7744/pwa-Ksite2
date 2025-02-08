@@ -1,0 +1,33 @@
+* {
+	font:normal normal normal medium/normal sans-serif;
+	font-family: sans-serif;
+	color:white;
+	padding: 0;
+	margin: 0;
+	/*overflow: scroll;*/
+	background-color:#555555;
+}
+
+#title{
+	background:white;
+	color:#0099ff;
+	
+}
+
+.webicon{
+	width="70";
+	height="70";
+}
+
+ul.a li {
+display: inline-block;
+}
+
+
+div.o4{
+border: double medium white;
+}
+
+h1{
+border: solid thin white;
+}

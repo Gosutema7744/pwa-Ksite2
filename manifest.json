@@ -1,0 +1,13 @@
+{
+	"short_name": "K-site",
+	"name": "PWA K-site",
+	"display": "standalone",
+	"start_url": "index.html",
+	"icons": [
+		{
+			"src": "images/kapp-icon-200.png",
+			"sizes": "200x200",
+			"type": "image/png"
+		}
+	]
+}

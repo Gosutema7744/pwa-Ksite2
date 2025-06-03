@@ -92,6 +92,16 @@
                 // ユーザーに再生を促すメッセージなどを表示することもできます
             });
 
+             // 音楽が終了したときのイベントリスナー
+            backgroundMusic.addEventListener('ended', function() {
+                // 5秒後に音楽を再開
+                setTimeout(() => {
+                    if (isPlaying) { // 音楽が再生状態の場合のみ再開
+                        backgroundMusic.play();
+                    }
+                }, 5000); // 5000ミリ秒 = 5秒
+            });
+
             musicToggleButton.addEventListener('click', function() {
                 if (isPlaying) {
                     backgroundMusic.pause();

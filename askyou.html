@@ -18,9 +18,105 @@
             align-items: center; /* 垂直方向中央揃え */
             gap: 1rem; /* 画像とテキストの間のスペース */
         }
+
+
+
+                /* スクロールバーの非表示（タブ用） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
+    
+    <header class="bg-white shadow-md p-4 sticky top-0 z-10">
+        <div class="container mx-auto flex items-center justify-between">
+            <h1 class="text-2xl font-bold text-blue-600">画像ギャラリー</h1>
+            <nav class="flex-grow ml-8 overflow-x-auto no-scrollbar">
+                <div id="tab-container" class="flex space-x-2">
+                    </div>
+            </nav>
+            <button id="add-image-button" class="ml-4 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+
+
+    <main class="flex-grow container mx-auto p-6 flex flex-col">
+        <section class="bg-white p-6 rounded-lg shadow-md w-full">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">質問だよ</h2>
+            <p class="mb-4 leading-relaxed">
+                東京は、日本の首都であり、世界有数の大都市です。伝統と革新が融合したこの街は、訪れる人々を魅了し続けています。
+                歴史的な浅草寺や皇居といった名所がある一方で、渋谷のスクランブル交差点や新宿の高層ビル群のような現代的な風景も広がっています。
+            </p>
+            <p class="mb-4 leading-relaxed">
+                食文化も豊かで、ミシュランの星を獲得した高級レストランから、庶民的な居酒屋、ラーメン店まで、あらゆるジャンルの料理を楽しむことができます。
+                また、ファッション、アート、エンターテイメントの中心地でもあり、常に最先端のトレンドが生まれています。
+            </p>
+            <p class="leading-relaxed">
+                四季折々の美しい景色も東京の魅力の一つです。春には桜、秋には紅葉が街を彩り、訪れる人々の目を楽しませます。
+                活気あふれる都市のエネルギーと、随所に感じられる日本の文化が、東京を忘れられない旅の目的地にしています。
+            </p>
+        </section>
+    </main>
+
+    <div id="upload-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-20 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96">
+            <h3 id="modal-title" class="text-xl font-semibold mb-6 text-gray-700">新しい画像をアップロード</h3>
+            <input type="file" id="image-file-input" accept="image/*" class="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            <input type="text" id="image-name-input" placeholder="画像の名前を入力" class="w-full p-3 border border-gray-300 rounded-lg mb-6 focus:ring-blue-500 focus:border-blue-500">
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-upload-button" class="px-5 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-300">キャンセル</button>
+                <button id="confirm-upload-button" class="px-5 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-lg transition duration-300">アップロード</button>
+            </div>
+            <p id="upload-error-message" class="text-red-500 text-sm mt-4 hidden"></p>
+        </div>
+    </div>
+
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-30 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-80 text-center">
+            <p class="text-lg font-semibold mb-6 text-gray-700">本当にこの画像を削除しますか？</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirm-delete-yes" class="px-5 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition duration-300">はい</button>
+                <button id="confirm-delete-no" class="px-5 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-300">いいえ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="fullscreen-image-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-40 hidden">
+        <div class="relative flex flex-col items-center p-4">
+            <img id="fullscreen-displayed-image" src="" alt="表示された画像" class="max-w-full max-h-[90vh] min-h-[60vh] object-contain rounded-lg shadow-xl">
+            <button id="fullscreen-close-button" class="absolute top-0 right-0 m-4 p-2 bg-gray-200 hover:bg-gray-300 rounded-full text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <div id="fullscreen-image-actions" class="mt-6 flex space-x-4">
+                <button id="fullscreen-replace-image-button" class="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                    画像を置換
+                </button>
+                <button id="fullscreen-delete-image-button" class="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400">
+                    画像を削除
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+    
+    
 
     <audio id="backgroundMusic" src="example.mp3" autoplay loop></audio>
 
@@ -158,6 +254,337 @@
                 URL.revokeObjectURL(url); // URLを解放
             });
         });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                // Cookie管理関数
+        const setCookie = (name, value, days) => {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        };
+
+        const getCookie = (name) => {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        };
+
+        const deleteCookie = (name) => {
+            document.cookie = name + '=; Max-Age=-99999999; path=/; SameSite=Lax';
+        };
+
+        // DOM要素の取得
+        const tabContainer = document.getElementById('tab-container');
+        const addImageButton = document.getElementById('add-image-button');
+        const uploadModal = document.getElementById('upload-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const imageFileInput = document.getElementById('image-file-input');
+        const imageNameInput = document.getElementById('image-name-input');
+        const cancelUploadButton = document.getElementById('cancel-upload-button');
+        const confirmUploadButton = document.getElementById('confirm-upload-button');
+        const uploadErrorMessage = document.getElementById('upload-error-message');
+
+        // 削除確認モーダル関連
+        const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+        const confirmDeleteYes = document.getElementById('confirm-delete-yes');
+        const confirmDeleteNo = document.getElementById('confirm-delete-no');
+
+        // フルスクリーン画像表示モーダル関連
+        const fullscreenImageModal = document.getElementById('fullscreen-image-modal');
+        const fullscreenDisplayedImage = document.getElementById('fullscreen-displayed-image');
+        const fullscreenCloseButton = document.getElementById('fullscreen-close-button');
+        const fullscreenImageActions = document.getElementById('fullscreen-image-actions');
+        const fullscreenReplaceImageButton = document.getElementById('fullscreen-replace-image-button');
+        const fullscreenDeleteImageButton = document.getElementById('fullscreen-delete-image-button');
+
+        // グローバル変数
+        let images = {}; // { id: { name: '画像名', data: 'base64データ' } }
+        let currentImageId = null; // 現在表示されている画像のID
+        let isReplacing = false; // 置換モードかどうか
+
+        /**
+         * Cookieから画像を読み込み、imagesオブジェクトを初期化する
+         */
+        const loadImagesFromCookies = () => {
+            images = {}; // 初期化
+            const cookies = document.cookie.split(';');
+            cookies.forEach(cookie => {
+                let [name, value] = cookie.trim().split('=');
+                if (name.startsWith('image_')) {
+                    const id = name.substring(6); // 'image_' の後の部分がID
+                    try {
+                        const imageData = JSON.parse(decodeURIComponent(value));
+                        if (imageData.name && imageData.data) {
+                            images[id] = imageData;
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse image cookie:', name, e);
+                        // 不正なCookieは削除する
+                        deleteCookie(name);
+                    }
+                }
+            });
+        };
+
+        /**
+         * 画像データをCookieに保存する
+         * @param {string} id - 画像のユニークID
+         * @param {string} name - 画像名
+         * @param {string} data - Base64エンコードされた画像データ
+         */
+        const saveImageToCookie = (id, name, data) => {
+            const imageData = { name, data };
+            // Cookieに保存する前にURIエンコードする
+            setCookie(`image_${id}`, encodeURIComponent(JSON.stringify(imageData)), 365); // 365日間有効
+        };
+
+        /**
+         * 指定されたIDの画像をCookieから削除する
+         * @param {string} id - 削除する画像のID
+         */
+        const deleteImageFromCookie = (id) => {
+            deleteCookie(`image_${id}`);
+            delete images[id]; // imagesオブジェクトからも削除
+        };
+
+        /**
+         * タブをレンダリングする
+         */
+        const renderTabs = () => {
+            tabContainer.innerHTML = ''; // 既存のタブをクリア
+
+            // 画像のIDをソートして一貫性を保つ
+            const sortedImageIds = Object.keys(images).sort((a, b) => {
+                // IDが数字の場合は数値として比較、そうでなければ文字列として比較
+                const numA = parseInt(a, 10);
+                const numB = parseInt(b, 10);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                }
+                return a.localeCompare(b);
+            });
+
+            sortedImageIds.forEach(id => {
+                const image = images[id];
+                const tabButton = document.createElement('button');
+                tabButton.id = `tab-${id}`;
+                tabButton.textContent = image.name;
+                tabButton.className = `px-4 py-2 rounded-t-lg font-medium transition duration-300 ease-in-out whitespace-nowrap
+                                       ${id === currentImageId ? 'bg-blue-500 text-white shadow-inner' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`;
+                tabButton.onclick = () => displayImage(id);
+                tabContainer.appendChild(tabButton);
+            });
+        };
+
+        /**
+         * 指定されたIDの画像をフルスクリーンで表示する
+         * @param {string} id - 表示する画像のID
+         */
+        const displayImage = (id) => {
+            currentImageId = id;
+            const image = images[id];
+
+            // 全てのタブのアクティブ状態をリセット
+            document.querySelectorAll('#tab-container button').forEach(button => {
+                button.classList.remove('bg-blue-500', 'text-white', 'shadow-inner');
+                button.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            });
+
+            // 現在のタブをアクティブにする
+            const currentTabButton = document.getElementById(`tab-${id}`);
+            if (currentTabButton) {
+                currentTabButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                currentTabButton.classList.add('bg-blue-500', 'text-white', 'shadow-inner');
+            }
+
+            if (image) {
+                fullscreenDisplayedImage.src = image.data;
+                fullscreenDisplayedImage.alt = image.name;
+                fullscreenImageModal.classList.remove('hidden'); // フルスクリーンモーダルを表示
+                fullscreenImageActions.classList.remove('hidden'); // アクションボタンを表示
+            } else {
+                // 画像が見つからない場合（削除後など）
+                hideImageDisplay(); // 画像表示を非表示にする
+            }
+        };
+
+        /**
+         * フルスクリーン画像表示エリアを非表示にする
+         */
+        const hideImageDisplay = () => {
+            fullscreenImageModal.classList.add('hidden'); // フルスクリーンモーダルを非表示
+            fullscreenImageActions.classList.add('hidden'); // アクションボタンを非表示
+            currentImageId = null;
+
+            // 全てのタブのアクティブ状態をリセット
+            document.querySelectorAll('#tab-container button').forEach(button => {
+                button.classList.remove('bg-blue-500', 'text-white', 'shadow-inner');
+                button.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            });
+        };
+
+        /**
+         * 画像アップロード/置換モーダルを開く
+         * @param {boolean} isReplaceMode - 置換モードかどうか
+         */
+        const openUploadModal = (isReplaceMode = false) => {
+            isReplacing = isReplaceMode;
+            modalTitle.textContent = isReplacing ? '画像を置換' : '新しい画像をアップロード';
+            imageFileInput.value = ''; // ファイル選択をリセット
+            imageNameInput.value = isReplacing && currentImageId ? images[currentImageId].name : ''; // 置換の場合、既存の名前をセット
+            uploadErrorMessage.classList.add('hidden');
+            uploadModal.classList.remove('hidden');
+        };
+
+        /**
+         * 画像アップロード/置換処理
+         */
+        const handleUpload = () => {
+            const file = imageFileInput.files[0];
+            const imageName = imageNameInput.value.trim();
+
+            if (!file) {
+                uploadErrorMessage.textContent = 'ファイルを選択してください。';
+                uploadErrorMessage.classList.remove('hidden');
+                return;
+            }
+            if (!imageName) {
+                uploadErrorMessage.textContent = '画像の名前を入力してください。';
+                uploadErrorMessage.classList.remove('hidden');
+                return;
+            }
+
+            // 画像のサイズチェック（例: 2MBまで）
+            const maxSize = 2 * 1024 * 1024; // 2MB
+            if (file.size > maxSize) {
+                uploadErrorMessage.textContent = 'ファイルサイズが大きすぎます（最大2MB）。';
+                uploadErrorMessage.classList.remove('hidden');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64Data = e.target.result;
+                let idToUse = isReplacing ? currentImageId : `img_${Date.now()}`; // 置換なら既存ID、新規なら新ID
+
+                // 名前が重複していないかチェック（新規アップロード時のみ）
+                if (!isReplacing) {
+                    const nameExists = Object.values(images).some(img => img.name === imageName);
+                    if (nameExists) {
+                        uploadErrorMessage.textContent = 'その名前の画像は既に存在します。別の名前を入力してください。';
+                        uploadErrorMessage.classList.remove('hidden');
+                        return;
+                    }
+                }
+
+                saveImageToCookie(idToUse, imageName, base64Data);
+                images[idToUse] = { name: imageName, data: base64Data }; // imagesオブジェクトを更新
+
+                uploadModal.classList.add('hidden');
+                renderTabs();
+                displayImage(idToUse); // アップロード/置換した画像を表示
+            };
+            reader.onerror = () => {
+                uploadErrorMessage.textContent = 'ファイルの読み込み中にエラーが発生しました。';
+                uploadErrorMessage.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        };
+
+        /**
+         * 画像削除処理の開始（確認モーダル表示）
+         */
+        const handleDeleteInitiate = () => {
+            if (currentImageId) {
+                deleteConfirmModal.classList.remove('hidden');
+            }
+        };
+
+        /**
+         * 画像削除の実行
+         */
+        const handleDeleteConfirm = () => {
+            if (currentImageId) {
+                deleteImageFromCookie(currentImageId);
+                renderTabs();
+                // 削除後、フルスクリーン表示を閉じる
+                hideImageDisplay();
+                // 削除後、残りの画像があれば最初の画像を表示
+                const remainingImageIds = Object.keys(images);
+                if (remainingImageIds.length > 0) {
+                    // 削除後にタブを再レンダリングし、最初の画像を再表示
+                    displayImage(remainingImageIds[0]);
+                }
+            }
+            deleteConfirmModal.classList.add('hidden'); // モーダルを閉じる
+        };
+
+        // イベントリスナーの設定
+        addImageButton.addEventListener('click', () => openUploadModal(false));
+
+        // フルスクリーンモーダル内のボタン
+        fullscreenReplaceImageButton.addEventListener('click', () => {
+            if (currentImageId) {
+                openUploadModal(true);
+            }
+        });
+        fullscreenDeleteImageButton.addEventListener('click', handleDeleteInitiate); // 削除ボタンで確認モーダルを表示
+
+        cancelUploadButton.addEventListener('click', () => uploadModal.classList.add('hidden'));
+        confirmUploadButton.addEventListener('click', handleUpload);
+
+        fullscreenCloseButton.addEventListener('click', hideImageDisplay); // フルスクリーン閉じるボタンで画像表示を非表示に
+
+        // 削除確認モーダルのボタン
+        confirmDeleteYes.addEventListener('click', handleDeleteConfirm);
+        confirmDeleteNo.addEventListener('click', () => deleteConfirmModal.classList.add('hidden'));
+
+        // フルスクリーン画像表示モーダルの背景をクリックしたときに画像を非表示にする
+        fullscreenImageModal.addEventListener('click', (event) => {
+            // クリックされた要素が画像自体、またはアクションボタン、閉じるボタンでない場合
+            if (event.target === fullscreenImageModal) {
+                hideImageDisplay();
+            }
+        });
+
+        // 初期ロード
+        window.onload = () => {
+            loadImagesFromCookies();
+            renderTabs();
+            // 初期ロード時には画像を自動表示しない
+            hideImageDisplay(); // フルスクリーンモーダルを非表示にする
+        }
     </script>
 </body>
 </html>

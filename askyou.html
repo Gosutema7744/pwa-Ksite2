@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>質問ページ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 薄いグレーの背景 */
+            color: #333;
+        }
+        /* カスタムスタイルで画像とテキストの垂直方向の配置を調整 */
+        .question-item {
+            display: flex;
+            align-items: center; /* 垂直方向中央揃え */
+            gap: 1rem; /* 画像とテキストの間のスペース */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <audio id="backgroundMusic" src="example.mp3" autoplay loop></audio>
+
+    <div class="absolute top-4 right-4">
+        <button id="musicToggleButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+            🎵 音楽を停止
+        </button>
+    </div>
+
+    <div class="bg-white p-8 rounded-xl shadow-2xl max-w-2xl w-full space-y-8">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8">質問タイム</h1>
+
+        <div class="mb-6">
+            <label for="dateTimeInput" class="block text-lg font-semibold text-gray-700 mb-2">日時を選択:</label>
+            <input type="datetime-local" id="dateTimeInput" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200 text-gray-800">
+        </div>
+
+        <div class="question-item bg-gray-50 p-6 rounded-lg shadow-inner">
+            <img src="https://placehold.co/80x80/E0E0E0/333333?text=A" alt="質問1の画像" class="w-20 h-20 rounded-md shadow-md flex-shrink-0">
+            <div class="flex-grow">
+                <p class="text-xl font-semibold text-gray-700 mb-2">質問１あいうえお</p>
+                <input type="text" id="question1Answer" placeholder="ここに回答を入力してください" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200">
+            </div>
+        </div>
+
+        <div class="question-item bg-gray-50 p-6 rounded-lg shadow-inner">
+            <img src="https://placehold.co/80x80/E0E0E0/333333?text=B" alt="質問2の画像" class="w-20 h-20 rounded-md shadow-md flex-shrink-0">
+            <div class="flex-grow">
+                <p class="text-xl font-semibold text-gray-700 mb-2">質問２かきくけこ</p>
+                <div id="question2Choices" class="space-y-2">
+                    <label class="block text-gray-600">
+                        <input type="radio" name="q2_choice" value="選択肢１" class="mr-2"> 選択肢１
+                    </label>
+                    <label class="block text-gray-600">
+                        <input type="radio" name="q2_choice" value="選択肢２" class="mr-2"> 選択肢２
+                    </label>
+                    <label class="block text-gray-600">
+                        <input type="radio" name="q2_choice" value="選択肢３" class="mr-2"> 選択肢３
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="question-item bg-gray-50 p-6 rounded-lg shadow-inner">
+            <img src="https://placehold.co/80x80/E0E0E0/333333?text=C" alt="質問3の画像" class="w-20 h-20 rounded-md shadow-md flex-shrink-0">
+            <div class="flex-grow">
+                <p class="text-xl font-semibold text-gray-700 mb-2">質問３さしすせそ</p>
+                <textarea id="question3Answer" placeholder="ここに自由回答を入力してください" rows="3" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"></textarea>
+            </div>
+        </div>
+
+        <div class="text-center mt-8">
+            <button id="saveAnswersButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-xl transition duration-300 ease-in-out transform hover:scale-105">
+                回答を保存
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const backgroundMusic = document.getElementById('backgroundMusic');
+            const musicToggleButton = document.getElementById('musicToggleButton');
+            let isPlaying = true;
+
+            // ブラウザの自動再生ポリシーにより、手動で再生を開始する必要がある場合があります。
+            // ページロード時に再生を試み、失敗した場合はユーザーに操作を促します。
+            backgroundMusic.play().catch(error => {
+                console.log("自動再生がブロックされました:", error);
+                // ユーザーに再生を促すメッセージなどを表示することもできます
+            });
+
+            musicToggleButton.addEventListener('click', function() {
+                if (isPlaying) {
+                    backgroundMusic.pause();
+                    musicToggleButton.textContent = '🎵 音楽を再生';
+                } else {
+                    backgroundMusic.play();
+                    musicToggleButton.textContent = '🎵 音楽を停止';
+                }
+                isPlaying = !isPlaying;
+            });
+
+            const dateTimeInput = document.getElementById('dateTimeInput');
+            const saveAnswersButton = document.getElementById('saveAnswersButton');
+
+            // 現在の日時をデフォルト値として設定
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // UTCからローカルタイムへのオフセットを調整
+            dateTimeInput.value = now.toISOString().slice(0, 16);
+
+            saveAnswersButton.addEventListener('click', function() {
+                // 日時を取得し、yy_mmdd形式にフォーマット
+                const selectedDateTime = new Date(dateTimeInput.value);
+                const year = String(selectedDateTime.getFullYear()).slice(-2);
+                const month = String(selectedDateTime.getMonth() + 1).padStart(2, '0');
+                const day = String(selectedDateTime.getDate()).padStart(2, '0');
+                const formattedDate = `${year}_${month}${day}`;
+
+                // 各質問の回答を取得
+                const question1Answer = document.getElementById('question1Answer').value;
+                let question2Answer = '';
+                const q2Choices = document.querySelectorAll('input[name="q2_choice"]');
+                for (const choice of q2Choices) {
+                    if (choice.checked) {
+                        question2Answer = choice.value;
+                        break;
+                    }
+                }
+                const question3Answer = document.getElementById('question3Answer').value;
+
+                // タブ区切り形式のデータを作成
+                const data = `${formattedDate}\t${question1Answer}\t${question2Answer}\t${question3Answer}`;
+
+                // Blobを作成し、ダウンロードリンクを生成
+                const blob = new Blob([data], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                // ダウンロード用のa要素を作成し、クリックしてダウンロード
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `回答データ_${formattedDate}.txt`; // ファイル名
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url); // URLを解放
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URLと名前の保存</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Interフォントと全体のボディのカスタムスタイル */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* 編集ウィンドウとオーバーレイのカスタムスタイル */
+        .edit-window {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* やや暗いオーバーレイ */
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-8 px-4">
+
+    <div class="logo flex items-center mb-8">
+        <a href="/pwa-Ksite2/url.html" class="flex items-center text-blue-600 hover:text-blue-800 transition-colors duration-200">
+            <img src="https://placehold.co/40x40/ADD8E6/000000?text=K" width="40px" height="40px" alt="K-site Icon" class="rounded-full mr-2 shadow-md">
+            <span class="text-2xl font-bold text-gray-800">K-site</span>
+        </a>
+    </div>
+
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-8 text-center">URLと名前の保存</h1>
+
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl mb-10">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">保存された一覧</h2>
+        <ul id="list" class="space-y-4">
+            </ul>
+    </div>
+
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">新しいURLを保存</h2>
+        <form id="urlForm" class="space-y-6">
+            <div>
+                <label for="url" class="block text-gray-700 text-sm font-medium mb-2">URL:</label>
+                <input type="url" id="url" name="url" placeholder="例: https://www.example.com" required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+            </div>
+            <div>
+                <label for="name" class="block text-gray-700 text-sm font-medium mb-2">名前:</label>
+                <input type="text" id="name" name="name" placeholder="例: Google" required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+            </div>
+            <button type="submit"
+                    class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all duration-200 shadow-md">
+                保存
+            </button>
+        </form>
+    </div>
+
+    <div class="overlay"></div>
+    <div class="edit-window bg-white p-8 rounded-xl shadow-2xl border border-gray-200 w-full max-w-md">
+        <h3 class="text-xl font-semibold text-gray-800 mb-6 text-center">URLを編集</h3>
+        <form id="editForm" class="space-y-6">
+            <div>
+                <label for="editUrl" class="block text-gray-700 text-sm font-medium mb-2">URL:</label>
+                <input type="url" id="editUrl" name="editUrl" required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+            </div>
+            <div>
+                <label for="editName" class="block text-gray-700 text-sm font-medium mb-2">名前:</label>
+                <input type="text" id="editName" name="editName" required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" id="cancelEdit"
+                        class="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg font-medium hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-gray-200 transition-all duration-200">
+                    キャンセル
+                </button>
+                <button type="submit"
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-200 shadow-md">
+                    編集完了
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // クッキー名を「url_saver_data」に変更します。
+        const COOKIE_NAME = 'url_saver_data';
+
+        /**
+         * クッキーから保存されたURLを取得します。
+         * @returns {Array<Object>} URLオブジェクトの配列、存在しない場合は空の配列。
+         */
+        function getSavedUrls() {
+            try {
+                const cookies = document.cookie.split(';');
+                let savedUrlsCookie = null;
+                for (let i = 0; i < cookies.length; i++) {
+                    let cookie = cookies[i].trim();
+                    if (cookie.startsWith(COOKIE_NAME + '=')) {
+                        savedUrlsCookie = cookie.substring(COOKIE_NAME.length + 1);
+                        break;
+                    }
+                }
+                if (savedUrlsCookie) {
+                    return JSON.parse(decodeURIComponent(savedUrlsCookie));
+                }
+            } catch (e) {
+                console.error("クッキーからのURL解析エラー:", e);
+            }
+            return [];
+        }
+
+        /**
+         * URLオブジェクトの配列をクッキーに保存します。
+         * @param {Array<Object>} urls - 保存するURLオブジェクトの配列。
+         */
+        function saveUrls(urls) {
+            const jsonString = JSON.stringify(urls);
+            // クッキーを365日で期限切れに設定
+            const date = new Date();
+            date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+            const expires = "; expires=" + date.toUTCString();
+            document.cookie = `${COOKIE_NAME}=${encodeURIComponent(jsonString)}${expires}; path=/; SameSite=Lax`;
+        }
+
+        /**
+         * ページのURLリストをレンダリングします。
+         */
+        function renderUrlList() {
+            const listElement = document.getElementById('list');
+            listElement.innerHTML = ''; // 既存のリストをクリア
+            const savedUrls = getSavedUrls();
+
+            if (savedUrls.length === 0) {
+                const noItemsMessage = document.createElement('li');
+                noItemsMessage.className = "text-center text-gray-500 py-4";
+                noItemsMessage.textContent = "まだURLが保存されていません。";
+                listElement.appendChild(noItemsMessage);
+                return;
+            }
+
+            savedUrls.forEach((item, index) => {
+                const listItem = document.createElement('li');
+                listItem.className = "flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-50 p-4 rounded-lg shadow-sm hover:bg-gray-100 transition-colors duration-200";
+
+                const linkContainer = document.createElement('div');
+                linkContainer.className = "flex-grow mb-2 sm:mb-0";
+                const link = document.createElement('a');
+                link.href = item.url;
+                link.textContent = `${item.name}: ${item.url}`;
+                link.target = "_blank"; // 新しいタブで開く
+                link.rel = "noopener noreferrer"; // セキュリティのベストプラクティス
+                link.className = "text-blue-600 hover:underline text-base break-all";
+                linkContainer.appendChild(link);
+
+                const buttonsContainer = document.createElement('div');
+                buttonsContainer.className = "flex space-x-2";
+
+                // 編集ボタン
+                const editButton = document.createElement('button');
+                editButton.textContent = '編集';
+                editButton.className = "px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-all duration-200 shadow-sm";
+                editButton.addEventListener('click', function () {
+                    // 編集フォームに値を設定
+                    document.getElementById('editUrl').value = item.url;
+                    document.getElementById('editName').value = item.name;
+
+                    // 編集ウィンドウを表示
+                    document.querySelector('.edit-window').style.display = 'block';
+                    document.querySelector('.overlay').style.display = 'block';
+
+                    // 編集フォームの送信を処理
+                    document.getElementById('editForm').onsubmit = function (e) {
+                        e.preventDefault();
+                        const newUrl = document.getElementById('editUrl').value;
+                        const newName = document.getElementById('editName').value;
+
+                        // 配列内のアイテムを更新
+                        const currentUrls = getSavedUrls();
+                        const itemIndex = currentUrls.findIndex(urlItem => urlItem.url === item.url && urlItem.name === item.name);
+                        if (itemIndex > -1) {
+                            currentUrls[itemIndex] = { name: newName, url: newUrl };
+                            saveUrls(currentUrls);
+                            renderUrlList(); // 変更を反映するためにリストを再レンダリング
+                        }
+
+                        // 編集ウィンドウを非表示
+                        document.querySelector('.edit-window').style.display = 'none';
+                        document.querySelector('.overlay').style.display = 'none';
+                    };
+                });
+                buttonsContainer.appendChild(editButton);
+
+                // 削除ボタン
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '削除';
+                deleteButton.className = "px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300 transition-all duration-200 shadow-sm";
+                deleteButton.addEventListener('click', function () {
+                    const currentUrls = getSavedUrls();
+                    // 元のURLと名前に基づいて削除するアイテムをフィルタリング
+                    const updatedUrls = currentUrls.filter(urlItem => !(urlItem.url === item.url && urlItem.name === item.name));
+                    saveUrls(updatedUrls);
+                    renderUrlList(); // リストを再レンダリング
+                });
+                buttonsContainer.appendChild(deleteButton);
+
+                listItem.appendChild(linkContainer);
+                listItem.appendChild(buttonsContainer);
+                listElement.appendChild(listItem);
+            });
+        }
+
+        // メインフォーム送信のイベントリスナー
+        document.getElementById('urlForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const urlInput = document.getElementById('url');
+            const nameInput = document.getElementById('name');
+            const url = urlInput.value;
+            const name = nameInput.value;
+
+            const savedUrls = getSavedUrls();
+            // 同じ名前のURLがすでに存在するかチェック
+            const exists = savedUrls.some(item => item.name === name);
+            if (exists) {
+                // 実際のアプリでは、アラートの代わりにカスタムモーダルを使用することを検討してください
+                console.warn("この名前はすでに存在します。別の名前を使用してください。");
+                alert("この名前はすでに存在します。別の名前を使用してください。"); // ユーザーの元のコードに従い、シンプルさのためにアラートを使用していますが、一般的にはカスタムモーダルを推奨します。
+                return;
+            }
+
+            savedUrls.push({ name: name, url: url });
+            saveUrls(savedUrls);
+            renderUrlList(); // リストを再レンダリング
+
+            // フォームをリセット
+            urlInput.value = '';
+            nameInput.value = '';
+        });
+
+        // 編集ウィンドウのキャンセルボタンのイベントリスナー
+        document.getElementById('cancelEdit').addEventListener('click', function () {
+            document.querySelector('.edit-window').style.display = 'none';
+            document.querySelector('.overlay').style.display = 'none';
+        });
+
+        // ページ読み込み時のURLリストの初期レンダリング
+        window.addEventListener('load', renderUrlList);
+    </script>
+</body>
+</html>

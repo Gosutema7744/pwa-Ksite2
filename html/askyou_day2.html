@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>質問ページ</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 薄いグレーの背景 */
+            color: #333;
+        }
+        /* カスタムスタイルで画像とテキストの垂直方向の配置を調整 */
+        .question-item {
+            display: flex;
+            align-items: flex-start; /* 垂直方向上揃えに変更 */
+            gap: 1rem; /* 画像とテキストの間のスペース */
+        }
+        /* 編集モード時のスタイル */
+        .question-item.editing {
+            border: 2px dashed #a0aec0; /* 編集中の枠線 */
+            padding: 1rem;
+        }
+        /* メッセージボックスのスタイル */
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50; /* Green */
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            min-width: 300px;
+            text-align: center;
+        }
+        #messageBox.error {
+            background-color: #f44336; /* Red */
+        }
+        #messageBox.show {
+            opacity: 1;
+        }
+
+        /* 画像オーバーレイのスタイル */
+        #imageOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); /* 半透明の暗い背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999; /* 他の要素より手前に表示 */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #imageOverlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        #imageOverlay img {
+            max-width: 90vw; /* ビューポートの幅の90% */
+            max-height: 90vh; /* ビューポートの高さの90% */
+            border-radius: 12px;
+            object-fit: contain; /* アスペクト比を維持してフィット */
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            /* 小さい画像をある程度拡大して表示するためにmin-heightを設定 */
+            min-height: 60vh; /* ビューポートの高さの60%まで拡大 */
+            min-width: 60vw; /* ビューポートの幅の60%まで拡大 */
+            width: auto;
+            height: auto;
+        }
+
+        #closeOverlayButton {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.3);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        #closeOverlayButton:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- メッセージボックス -->
+    <div id="messageBox" class="hidden"></div>
+
+    <!-- 背景音楽 -->
+    <!-- loop属性は、音楽が自然に終了した場合の自動ループを保証しますが、
+         endedイベントリスナーで5秒の遅延を挟むことで、
+         このループ動作をカスタマイズします。 -->
+    <audio id="backgroundMusic" src="/pwa-Ksite2/music/week.mp3" autoplay loop></audio>
+
+    <!-- 音楽再生/一時停止ボタン -->
+    <div class="absolute top-4 right-4">
+        <button id="musicToggleButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+            🎵 音楽を停止
+        </button>
+    </div>
+
+    <!-- メインコンテンツコンテナ -->
+    <div class="bg-white p-8 rounded-xl shadow-2xl max-w-2xl w-full space-y-8">
+        <h1 class="text-4xl font-extrabold text-center text-gray-800 mb-8">質問タイム</h1>
+
+        <!-- 一時保存ボタン -->
+        <div class="text-right mb-4">
+            <button id="temporarySaveButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                💾 回答を一時保存
+            </button>
+        </div>
+
+        <!-- 日時選択 -->
+        <div class="mb-6">
+            <label for="dateTimeInput" class="block text-lg font-semibold text-gray-700 mb-2">日時を選択:</label>
+            <input type="date" id="dateTimeInput" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200 text-gray-800">
+        </div>
+
+        <!-- 質問を動的に挿入するコンテナ -->
+        <div id="questionsContainer" class="space-y-8">
+            <!-- 質問はJavaScriptによってここに挿入されます -->
+        </div>
+
+        <!-- 新規質問追加ボタン (編集モード時のみ表示) -->
+        <div id="addNewQuestionContainer" class="text-center mt-4 hidden">
+            <button id="addNewQuestionButton" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                + 新規質問を追加
+            </button>
+        </div>
+
+        <div class="text-center mt-8 space-y-4">
+            <button id="saveAnswersButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-xl transition duration-300 ease-in-out transform hover:scale-105">
+                回答を保存
+            </button>
+            <div class="flex justify-center space-x-2">
+                <button id="outputQuestionsButton" class="bg-gray-600 hover:bg-gray-700 text-white text-sm py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    出力
+                </button>
+                <button id="inputQuestionsButton" class="bg-gray-600 hover:bg-gray-700 text-white text-sm py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    入力
+                </button>
+                <button id="editQuestionsButton" class="bg-gray-600 hover:bg-gray-700 text-white text-sm py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    編集
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 画像拡大表示オーバーレイ -->
+    <div id="imageOverlay">
+        <img id="enlargedImage" src="" alt="Enlarged Image">
+        <button id="closeOverlayButton">✕</button>
+    </div>
+
+    <script>
+        // --- アプリケーションインスタンスID ---
+        // このアプリケーションを複数作成する場合、localStorageのキーが競合しないように
+        // 各インスタンスに異なるIDを設定してください。
+        // 例: 'question_app_instance_1', 'question_app_instance_2', 'question_app_instance_3'
+        const APP_ID = 'question_app_instance_1';
+
+        // Define the initial questions data structure
+        // This array defines the default questions and their properties.
+        const initialQuestionsData = [
+            {
+                id: 1,
+                type: 'text', // テキスト入力形式
+                text: '質問１あいうえお',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=A',
+                answerId: 'question1Answer'
+            },
+            {
+                id: 2,
+                type: 'radio', // ラジオボタン選択形式
+                text: '質問２かきくけこ',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=B',
+                options: ['選択肢１', '選択肢２', '選択肢３'],
+                answerName: 'q2_choice' // ラジオボタンのname属性
+            },
+            {
+                id: 3,
+                type: 'textarea', // テキストエリア形式
+                text: '質問３さしすせそ',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=C',
+                answerId: 'question3Answer'
+            },
+            {
+                id: 4,
+                type: 'yes_no_maybe', // YES/NO/MAYBEボタン形式
+                text: '質問４これはYES/NO/MAYBEの質問ですか？',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=D',
+                answerId: 'question4Answer'
+            },
+            {
+                id: 5,
+                type: 'maru_batsu', // マル・バツボタン形式
+                text: '質問５これは正しいですか？',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=E',
+                answerId: 'question5Answer'
+            },
+            {
+                id: 6,
+                type: 'number_block', // 数字ブロック選択形式
+                text: '質問６１から１０までの数字を選んでください。',
+                image: 'https://placehold.co/80x80/E0E0E0/333333?text=F',
+                min: 1, // 数字の最小値
+                max: 10, // 数字の最大値
+                answerId: 'question6Answer'
+            },
+            {
+                id: 7, // 新しいID
+                type: 'no_answer', // 回答なし形式
+                text: '質問７これは回答なし形式です。',
+                image: 'https://placehold.co/80x80/E0F0E0/333333?text=G'
+                // 回答IDは不要
+            }
+        ];
+
+        let currentQuestionsData = []; // This will hold the active questions data, loaded from localStorage or initial.
+        let isEditMode = false; // 編集モードの状態を管理するフラグ
+
+        // メッセージボックス表示用の関数
+        function showMessageBox(message, isError = false) {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'error');
+            messageBox.classList.add('show');
+            if (isError) {
+                messageBox.classList.add('error');
+            }
+
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+                messageBox.classList.add('hidden');
+            }, 3000); // 3秒後に非表示
+        }
+
+        /**
+         * 数字の値に基づいて色を生成する関数 (薄い赤 -> 薄い青)
+         * @param {number} value - 現在の数字
+         * @param {number} min - 範囲の最小値
+         * @param {number} max - 範囲の最大値
+         * @returns {string} RGBカラー文字列
+         */
+        function getColorForNumber(value, min, max) {
+            const normalized = (value - min) / (max - min); // 0から1の範囲に正規化
+            
+            // 薄い赤 (R:255, G:100, B:100) から 薄い青 (R:100, G:100, B:255) へ補間
+            const startR = 255;
+            const startG = 100;
+            const startB = 100;
+
+            const endR = 100;
+            const endG = 100;
+            const endB = 255;
+
+            const r = startR + (endR - startR) * normalized;
+            const g = startG + (endG - startG) * normalized;
+            const b = startB + (endB - startB) * normalized;
+            
+            return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+        }
+
+        /**
+         * 質問データを元にHTMLをレンダリングする関数
+         */
+        function renderQuestions() {
+            const questionsContainer = document.getElementById('questionsContainer');
+            questionsContainer.innerHTML = ''; // 既存の質問をクリア
+
+            currentQuestionsData.forEach((q, index) => {
+                const questionItem = document.createElement('div');
+                questionItem.classList.add('question-item', 'bg-gray-50', 'p-6', 'rounded-lg', 'shadow-inner');
+                questionItem.dataset.questionId = q.id;
+                questionItem.dataset.editing = 'false'; // 個別の編集状態を管理
+
+                // 質問画像
+                const img = document.createElement('img');
+                img.src = q.image;
+                img.alt = `質問${q.id}の画像`;
+                img.classList.add('w-20', 'h-20', 'rounded-md', 'shadow-md', 'flex-shrink-0', 'question-image', 'cursor-pointer'); // cursor-pointerを追加
+                // 画像クリックイベントリスナーをここで追加
+                img.addEventListener('click', () => showImageOverlay(img.src));
+                questionItem.appendChild(img);
+
+                const flexGrowDiv = document.createElement('div');
+                flexGrowDiv.classList.add('flex-grow');
+
+                // 質問文コンテナ
+                const questionTextContainer = document.createElement('div');
+                questionTextContainer.classList.add('mb-2');
+                const p = document.createElement('p');
+                p.classList.add('text-xl', 'font-semibold', 'text-gray-700', 'question-text');
+                p.textContent = q.text;
+                questionTextContainer.appendChild(p);
+                flexGrowDiv.appendChild(questionTextContainer);
+
+                // 回答入力/選択肢の生成（質問タイプに基づく）
+                if (q.type === 'text') {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = q.answerId;
+                    input.placeholder = 'ここに回答を入力してください';
+                    input.classList.add('w-full', 'p-3', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'transition', 'duration-200');
+                    flexGrowDiv.appendChild(input);
+                } else if (q.type === 'radio') {
+                    const choicesDiv = document.createElement('div');
+                    choicesDiv.classList.add('space-y-2');
+                    q.options.forEach(option => {
+                        const label = document.createElement('label');
+                        label.classList.add('block', 'text-gray-600');
+                        const input = document.createElement('input');
+                        input.type = 'radio';
+                        input.name = q.answerName;
+                        input.value = option;
+                        input.classList.add('mr-2');
+                        label.appendChild(input);
+                        label.appendChild(document.createTextNode(option));
+                        choicesDiv.appendChild(label);
+                    });
+                    flexGrowDiv.appendChild(choicesDiv);
+                } else if (q.type === 'textarea') {
+                    const textarea = document.createElement('textarea');
+                    textarea.id = q.answerId;
+                    textarea.placeholder = 'ここに自由回答を入力してください';
+                    textarea.rows = 3;
+                    textarea.classList.add('w-full', 'p-3', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'transition', 'duration-200');
+                    flexGrowDiv.appendChild(textarea);
+                } else if (q.type === 'yes_no_maybe') {
+                    const choicesDiv = document.createElement('div');
+                    choicesDiv.classList.add('flex', 'space-x-4', 'mt-2');
+                    const options = ['YES', 'NO', 'MAYBE'];
+                    const colors = {
+                        'YES': 'bg-blue-600 hover:bg-blue-700 text-white',
+                        'NO': 'bg-red-600 hover:bg-red-700 text-white',
+                        'MAYBE': 'bg-gray-300 hover:bg-gray-400 text-gray-800'
+                    };
+                    options.forEach(option => {
+                        const button = document.createElement('button');
+                        button.textContent = option;
+                        button.dataset.value = option;
+                        button.classList.add('q4-button', 'font-bold', 'py-2', 'px-4', 'rounded-full', 'shadow-md', 'transition', 'duration-200', ...colors[option].split(' '));
+                        button.addEventListener('click', function() {
+                            document.querySelectorAll('.q4-button').forEach(btn => {
+                                btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                            });
+                            this.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                            document.getElementById(q.answerId).value = this.dataset.value;
+                        });
+                        choicesDiv.appendChild(button);
+                    });
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.id = q.answerId;
+                    flexGrowDiv.appendChild(choicesDiv);
+                    flexGrowDiv.appendChild(hiddenInput);
+                } else if (q.type === 'maru_batsu') {
+                    const choicesDiv = document.createElement('div');
+                    choicesDiv.classList.add('flex', 'space-x-4', 'mt-2');
+                    const options = ['〇', '✕'];
+                    const colors = {
+                        '〇': 'bg-green-600 hover:bg-green-700 text-white',
+                        '✕': 'bg-red-600 hover:bg-red-700 text-white'
+                    };
+                    options.forEach(option => {
+                        const button = document.createElement('button');
+                        button.textContent = option;
+                        button.dataset.value = option;
+                        button.classList.add('q5-button', 'font-bold', 'text-2xl', 'py-2', 'px-6', 'rounded-full', 'shadow-md', 'transition', 'duration-200', ...colors[option].split(' '));
+                        button.addEventListener('click', function() {
+                            document.querySelectorAll('.q5-button').forEach(btn => {
+                                btn.classList.remove('ring-2', 'ring-offset-2', 'ring-green-500');
+                            });
+                            this.classList.add('ring-2', 'ring-offset-2', 'ring-green-500');
+                            document.getElementById(q.answerId).value = this.dataset.value;
+                        });
+                        choicesDiv.appendChild(button);
+                    });
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.id = q.answerId;
+                    flexGrowDiv.appendChild(choicesDiv);
+                    flexGrowDiv.appendChild(hiddenInput);
+                } else if (q.type === 'number_block') {
+                    const choicesDiv = document.createElement('div');
+                    choicesDiv.classList.add('flex', 'flex-wrap', 'gap-2', 'mt-2', 'justify-center');
+
+                    for (let i = q.min; i <= q.max; i++) {
+                        const button = document.createElement('button');
+                        button.textContent = i;
+                        button.dataset.value = i;
+                        button.classList.add(
+                            'q6-button', 'w-10', 'h-10', 'flex', 'items-center', 'justify-center',
+                            'rounded-md', 'shadow-md', 'font-bold', 'text-white',
+                            'transition', 'duration-200', 'hover:scale-105', 'text-lg'
+                        );
+                        button.style.backgroundColor = getColorForNumber(i, q.min, q.max);
+                        button.addEventListener('click', function() {
+                            document.querySelectorAll('.q6-button').forEach(btn => {
+                                btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                            });
+                            this.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                            document.getElementById(q.answerId).value = this.dataset.value;
+                        });
+                        choicesDiv.appendChild(button);
+                    }
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.id = q.answerId;
+                    flexGrowDiv.appendChild(choicesDiv);
+                    flexGrowDiv.appendChild(hiddenInput);
+                } else if (q.type === 'no_answer') {
+                    // 回答入力要素は生成しない
+                }
+                questionItem.appendChild(flexGrowDiv);
+                questionsContainer.appendChild(questionItem);
+
+                // 編集モードの場合、編集ボタンと削除ボタン、並べ替えボタンを追加
+                if (isEditMode) {
+                    questionItem.classList.add('relative'); // ボタン配置のためにrelativeを設定
+                    
+                    const editControlsContainer = document.createElement('div');
+                    editControlsContainer.classList.add('absolute', 'top-2', 'right-2', 'flex', 'space-x-2');
+
+                    // 上へ移動ボタン
+                    const moveUpButton = document.createElement('button');
+                    moveUpButton.textContent = '▲';
+                    moveUpButton.classList.add('text-xs', 'bg-gray-400', 'hover:bg-gray-500', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm');
+                    moveUpButton.addEventListener('click', () => moveQuestion(q.id, -1));
+                    if (index === 0) moveUpButton.disabled = true; // 最初の質問は上へ移動不可
+                    editControlsContainer.appendChild(moveUpButton);
+
+                    // 下へ移動ボタン
+                    const moveDownButton = document.createElement('button');
+                    moveDownButton.textContent = '▼';
+                    moveDownButton.classList.add('text-xs', 'bg-gray-400', 'hover:bg-gray-500', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm');
+                    moveDownButton.addEventListener('click', () => moveQuestion(q.id, 1));
+                    if (index === currentQuestionsData.length - 1) moveDownButton.disabled = true; // 最後の質問は下へ移動不可
+                    editControlsContainer.appendChild(moveDownButton);
+
+                    const editButton = document.createElement('button');
+                    editButton.textContent = '編集';
+                    editButton.classList.add('text-xs', 'bg-blue-400', 'hover:bg-blue-500', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm');
+                    editButton.addEventListener('click', () => toggleQuestionEditing(q.id));
+                    editControlsContainer.appendChild(editButton);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '削除';
+                    deleteButton.classList.add('text-xs', 'bg-red-400', 'hover:bg-red-500', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm');
+                    deleteButton.addEventListener('click', () => deleteQuestion(q.id));
+                    editControlsContainer.appendChild(deleteButton);
+
+                    questionItem.appendChild(editControlsContainer);
+                }
+            });
+
+            // 新規質問追加ボタンの表示/非表示
+            const addNewQuestionContainer = document.getElementById('addNewQuestionContainer');
+            if (isEditMode) {
+                addNewQuestionContainer.classList.remove('hidden');
+            } else {
+                addNewQuestionContainer.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 個別の質問の編集モードを切り替える関数
+         * @param {number} questionId - 編集する質問のID
+         */
+        function toggleQuestionEditing(questionId) {
+            const questionItem = document.querySelector(`.question-item[data-question-id="${questionId}"]`);
+            if (!questionItem) return;
+
+            // 他の質問が編集モードの場合、キャンセルする
+            document.querySelectorAll('.question-item[data-editing="true"]').forEach(item => {
+                const itemId = parseInt(item.dataset.questionId);
+                if (itemId !== questionId) {
+                    cancelQuestionEditing(itemId); // 他の質問の編集をキャンセル
+                }
+            });
+
+            // この質問を編集モードにする
+            questionItem.classList.add('editing');
+            questionItem.dataset.editing = 'true';
+
+            const questionImageElement = questionItem.querySelector('.question-image'); // This is the <img>
+            const flexGrowDiv = questionItem.querySelector('.flex-grow'); // Contains text and answer inputs
+
+            const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
+            const questionData = currentQuestionsData[qIndex];
+
+            // 既存の回答表示UIを削除 (もしあれば)
+            // (これは質問文の直後に来る回答入力要素や選択肢など)
+            const existingAnswerDisplayElements = flexGrowDiv.querySelectorAll('input[id$="Answer"]:not(.question-text-editor):not(.min-input):not(.max-input), textarea[id$="Answer"]:not(.question-text-editor):not(.options-editor), .space-y-2, .flex.space-x-4, .flex.flex-wrap, input[type="hidden"][id$="Answer"]');
+            existingAnswerDisplayElements.forEach(el => el.remove());
+
+
+            // 既存の質問文要素 (pタグ) を削除
+            const questionTextElement = questionItem.querySelector('.question-text');
+            if (questionTextElement) {
+                questionTextElement.remove();
+            }
+
+            // 既存の画像ファイル入力要素を削除（再追加するため）
+            let existingImageInput = questionItem.querySelector('.question-image-input');
+            if (existingImageInput) {
+                existingImageInput.remove();
+            }
+
+            // 画像ファイル入力要素を再作成して画像の下に配置
+            const newImageFileInput = document.createElement('input');
+            newImageFileInput.type = 'file';
+            newImageFileInput.accept = 'image/*';
+            newImageFileInput.classList.add('mt-2', 'p-1', 'border', 'border-gray-300', 'rounded-md', 'question-image-input');
+            questionImageElement.insertAdjacentElement('afterend', newImageFileInput);
+
+
+            // --- 編集UIを構築 ---
+            // flexGrowDivに新しいコンテナを作成し、その中に質問文エディタとタイプ選択を配置
+            const editableContentContainer = document.createElement('div');
+            editableContentContainer.classList.add('flex', 'flex-col', 'gap-2', 'mb-2'); // 縦並びにして間隔を空ける
+
+            // 質問文エディタ
+            let editorElement;
+            if (questionData.type === 'textarea') {
+                editorElement = document.createElement('textarea');
+                editorElement.rows = 3;
+            } else {
+                editorElement = document.createElement('input');
+                editorElement.type = 'text';
+            }
+            editorElement.value = questionData.text; // 元の質問テキストを設定
+            editorElement.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'question-text-editor');
+            editableContentContainer.appendChild(editorElement);
+
+            // 質問形式選択ドロップダウン
+            const typeSelect = document.createElement('select');
+            typeSelect.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'question-type-editor');
+            const types = ['text', 'textarea', 'radio', 'yes_no_maybe', 'maru_batsu', 'number_block', 'no_answer'];
+            types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                if (questionData.type === type) {
+                    option.selected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+            editableContentContainer.appendChild(typeSelect);
+
+            // editableContentContainerをflexGrowDivの先頭に追加
+            flexGrowDiv.prepend(editableContentContainer);
+
+
+            // タイプ変更イベントリスナー (既存のロジックを維持しつつ、EditableContentContainerの後に配置)
+            typeSelect.addEventListener('change', (e) => {
+                const newType = e.target.value;
+                questionData.type = newType;
+
+                // 新しいタイプに基づいてプロパティをクリーンアップ/デフォルト設定
+                if (newType !== 'radio' && newType !== 'yes_no_maybe' && newType !== 'maru_batsu') {
+                    delete questionData.options;
+                    delete questionData.answerName;
+                } else {
+                    if (!questionData.options) {
+                        if (newType === 'radio') questionData.options = ['選択肢1', '選択肢2'];
+                        else if (newType === 'yes_no_maybe') questionData.options = ['YES', 'NO', 'MAYBE'];
+                        else if (newType === 'maru_batsu') questionData.options = ['〇', '✕'];
+                    }
+                    if (newType === 'radio' && !questionData.answerName) {
+                        questionData.answerName = `q${questionData.id}_choice`;
+                    }
+                }
+
+                if (newType !== 'number_block') {
+                    delete questionData.min;
+                    delete questionData.max;
+                } else {
+                    if (questionData.min === undefined) questionData.min = 1;
+                    if (questionData.max === undefined) questionData.max = 10;
+                }
+                
+                // 更新された質問データ (タイプ変更を含む) をLocalStorageに保存
+                saveQuestionsToLocalStorage(currentQuestionsData);
+
+                // 全ての質問を再レンダリングする。これにより、全ての質問の編集モードが終了する。
+                renderQuestions();
+
+                // 対象の質問を再度編集モードにする。これにより、正しい編集UIが表示される。
+                toggleQuestionEditing(questionId);
+            });
+
+
+            // タイプに応じた編集UIをeditableContentContainerの後に配置
+            // （ここではflexGrowDivに直接appendする形だが、editableContentContainerの後ろに来る）
+            if (questionData.type === 'radio' || questionData.type === 'yes_no_maybe' || questionData.type === 'maru_batsu') {
+                const optionsEditor = document.createElement('textarea');
+                optionsEditor.rows = 3;
+                optionsEditor.placeholder = '選択肢をカンマ区切りで入力してください (例: 選択肢1,選択肢2)';
+                optionsEditor.value = questionData.options ? questionData.options.join(',') : '';
+                optionsEditor.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'options-editor');
+                flexGrowDiv.appendChild(optionsEditor);
+            } else if (questionData.type === 'number_block') {
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.placeholder = '最小値';
+                minInput.value = questionData.min !== undefined ? questionData.min : '';
+                minInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'min-input');
+                flexGrowDiv.appendChild(minInput);
+
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.placeholder = '最大値';
+                maxInput.value = questionData.max !== undefined ? questionData.max : '';
+                maxInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'max-input');
+                flexGrowDiv.appendChild(maxInput);
+            } else if (questionData.type === 'no_answer') {
+                // 回答なし形式の場合、特別な編集フィールドは不要
+                const infoText = document.createElement('p');
+                infoText.classList.add('text-sm', 'text-gray-500', 'mt-2');
+                infoText.textContent = 'この質問形式には回答欄がありません。';
+                flexGrowDiv.appendChild(infoText);
+            }
+
+
+            // コントロールボタン (保存/キャンセル) を更新
+            const editControlsContainer = questionItem.querySelector('.absolute.flex');
+            if (editControlsContainer) {
+                Array.from(editControlsContainer.children).forEach(child => child.remove()); // 元のボタンを削除
+
+                const saveButton = document.createElement('button');
+                saveButton.textContent = '保存';
+                saveButton.classList.add('text-xs', 'bg-green-600', 'hover:bg-green-700', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm');
+                saveButton.addEventListener('click', () => saveQuestionChanges(questionId));
+                editControlsContainer.appendChild(saveButton);
+
+                const cancelButton = document.createElement('button');
+                cancelButton.textContent = 'キャンセル';
+                cancelButton.classList.add('text-xs', 'bg-gray-400', 'hover:bg-gray-500', 'text-white', 'py-1', 'px-2', 'rounded-md', 'shadow-sm', 'ml-2');
+                cancelButton.addEventListener('click', () => cancelQuestionEditing(questionId));
+                editControlsContainer.appendChild(cancelButton);
+            }
+        }
+
+        /**
+         * 質問の変更を保存する関数
+         * @param {number} questionId - 変更を保存する質問のID
+         */
+        function saveQuestionChanges(questionId) {
+            const questionItem = document.querySelector(`.question-item[data-question-id="${questionId}"]`);
+            if (!questionItem) return;
+
+            const questionTextEditor = questionItem.querySelector('.question-text-editor');
+            const imageFileInput = questionItem.querySelector('.question-image-input');
+            const typeSelect = questionItem.querySelector('.question-type-editor'); // 正しいセレクタを使用
+
+            const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
+            if (qIndex === -1) return;
+
+            // 質問形式の更新
+            currentQuestionsData[qIndex].type = typeSelect ? typeSelect.value : currentQuestionsData[qIndex].type;
+
+            // 質問文の更新
+            if (questionTextEditor) {
+                currentQuestionsData[qIndex].text = questionTextEditor.value;
+            }
+
+            // answerIdの処理: typeがtext, textarea, yes_no_maybe, maru_batsu, number_blockの場合にのみ設定/維持する
+            // no_answerの場合はanswerIdを削除する
+            if (currentQuestionsData[qIndex].type === 'text' ||
+                currentQuestionsData[qIndex].type === 'textarea' ||
+                currentQuestionsData[qIndex].type === 'yes_no_maybe' ||
+                currentQuestionsData[qIndex].type === 'maru_batsu' ||
+                currentQuestionsData[qIndex].type === 'number_block') {
+                // answerIdがまだ存在しない場合のみ設定
+                if (!currentQuestionsData[qIndex].answerId) {
+                    currentQuestionsData[qIndex].answerId = `question${currentQuestionsData[qIndex].id}Answer`;
+                }
+            } else {
+                delete currentQuestionsData[qIndex].answerId;
+            }
+
+
+            // 各質問タイプに応じたデータの更新
+            if (currentQuestionsData[qIndex].type === 'radio' || currentQuestionsData[qIndex].type === 'yes_no_maybe' || currentQuestionsData[qIndex].type === 'maru_batsu') {
+                const optionsEditor = questionItem.querySelector('.options-editor');
+                if (optionsEditor) {
+                    currentQuestionsData[qIndex].options = optionsEditor.value.split(',').map(s => s.trim()).filter(s => s !== '');
+                } else { // optionsEditorが存在しない場合のデフォルト設定
+                    if (currentQuestionsData[qIndex].type === 'radio') currentQuestionsData[qIndex].options = ['選択肢1', '選択肢2'];
+                    else if (currentQuestionsData[qIndex].type === 'yes_no_maybe') currentQuestionsData[qIndex].options = ['YES', 'NO', 'MAYBE'];
+                    else if (currentQuestionsData[qIndex].type === 'maru_batsu') currentQuestionsData[qIndex].options = ['〇', '✕'];
+                }
+                // radioタイプのみanswerNameを保持
+                if (currentQuestionsData[qIndex].type === 'radio' && !currentQuestionsData[qIndex].answerName) {
+                    currentQuestionsData[qIndex].answerName = `q${currentQuestionsData[qIndex].id}_choice`;
+                } else if (currentQuestionsData[qIndex].type !== 'radio' && currentQuestionsData[qIndex].answerName) {
+                    delete currentQuestionsData[qIndex].answerName;
+                }
+            } else { // 他のタイプではoptions, answerNameは不要
+                delete currentQuestionsData[qIndex].options;
+                delete currentQuestionsData[qIndex].answerName;
+            }
+
+            if (currentQuestionsData[qIndex].type === 'number_block') {
+                const minInput = questionItem.querySelector('.min-input');
+                const maxInput = questionItem.querySelector('.max-input');
+                if (minInput && maxInput) {
+                    currentQuestionsData[qIndex].min = parseInt(minInput.value) || 0;
+                    currentQuestionsData[qIndex].max = parseInt(maxInput.value) || 0;
+                } else if (currentQuestionsData[qIndex].min === undefined) { // min/maxがない場合のデフォルト
+                    currentQuestionsData[qIndex].min = 1;
+                    currentQuestionsData[qIndex].max = 10;
+                }
+            } else { // 他のタイプではmin/maxは不要
+                delete currentQuestionsData[qIndex].min;
+                delete currentQuestionsData[qIndex].max;
+            }
+
+            // 画像の更新
+            if (imageFileInput && imageFileInput.files.length > 0) {
+                const file = imageFileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    currentQuestionsData[qIndex].image = e.target.result; // Base64データURLとして保存
+                    saveQuestionsToLocalStorage(currentQuestionsData); // LocalStorageに保存
+                    renderQuestions(); // UIを再レンダリング
+                    showMessageBox('質問が保存されました。');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                saveQuestionsToLocalStorage(currentQuestionsData); // LocalStorageに保存
+                renderQuestions(); // UIを再レンダリング
+                showMessageBox('質問が保存されました。');
+            }
+        }
+
+        /**
+         * 質問の編集をキャンセルする関数
+         * @param {number} questionId - 編集をキャンセルする質問のID
+         */
+        function cancelQuestionEditing(questionId) {
+            const questionItem = document.querySelector(`.question-item[data-question-id="${questionId}"]`);
+            if (!questionItem) return;
+
+            questionItem.dataset.editing = 'false'; // 編集状態をリセット
+            renderQuestions(); // UIを元の状態に戻すために再レンダリング
+            showMessageBox('質問の編集がキャンセルされました。');
+        }
+
+        /**
+         * 質問を削除する関数
+         * @param {number} questionId - 削除する質問のID
+         */
+        function deleteQuestion(questionId) {
+            if (confirm('この質問を削除してもよろしいですか？')) {
+                currentQuestionsData = currentQuestionsData.filter(q => q.id !== questionId);
+                saveQuestionsToLocalStorage(currentQuestionsData);
+                renderQuestions();
+                showMessageBox('質問が削除されました。');
+            }
+        }
+
+        /**
+         * 質問の順序を移動する関数
+         * @param {number} questionId - 移動する質問のID
+         * @param {number} direction - 移動方向 (1:下へ, -1:上へ)
+         */
+        function moveQuestion(questionId, direction) {
+            const index = currentQuestionsData.findIndex(q => q.id === questionId);
+            if (index === -1) return;
+
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < currentQuestionsData.length) {
+                const [movedQuestion] = currentQuestionsData.splice(index, 1); // 質問を切り取り
+                currentQuestionsData.splice(newIndex, 0, movedQuestion); // 新しい位置に挿入
+                saveQuestionsToLocalStorage(currentQuestionsData);
+                renderQuestions();
+                showMessageBox('質問の順序が変更されました。');
+            }
+        }
+
+        /**
+         * 新規質問を追加する関数
+         */
+        function addNewQuestion() {
+            const newId = currentQuestionsData.length > 0 ? Math.max(...currentQuestionsData.map(q => q.id)) + 1 : 1;
+            const newQuestion = {
+                id: newId,
+                type: 'text', // デフォルトはテキスト形式
+                text: `新規質問 ${newId}`,
+                image: 'https://placehold.co/80x80/EEEEEE/555555?text=New', // 新規質問用のプレースホルダー
+                answerId: `question${newId}Answer`
+            };
+            currentQuestionsData.push(newQuestion);
+            saveQuestionsToLocalStorage(currentQuestionsData);
+            renderQuestions();
+            showMessageBox('新しい質問が追加されました。');
+        }
+
+
+        /**
+         * 質問データをLocalStorageに保存する関数
+         * @param {Array} data - 保存する質問データ配列
+         */
+        function saveQuestionsToLocalStorage(data) {
+            try {
+                localStorage.setItem(`${APP_ID}_questionsData`, JSON.stringify(data));
+                console.log('質問データをLocalStorageに保存しました。');
+            } catch (e) {
+                console.error('LocalStorageへの保存に失敗しました:', e);
+                showMessageBox('質問データの保存に失敗しました。ブラウザのストレージが上限に達している可能性があります。', true);
+            }
+        }
+
+        /**
+         * 質問データをLocalStorageから読み込む関数
+         * @returns {Array|null} 読み込んだ質問データ配列、またはnull
+         */
+        function loadQuestionsFromLocalStorage() {
+            try {
+                const storedData = localStorage.getItem(`${APP_ID}_questionsData`);
+                if (storedData) {
+                    const parsedData = JSON.parse(storedData);
+                    console.log('質問データをLocalStorageから読み込みました。');
+                    return parsedData;
+                }
+            } catch (e) {
+                console.error('LocalStorageからの読み込みに失敗しました:', e);
+                showMessageBox('質問データの読み込みに失敗しました。データが破損している可能性があります。', true);
+            }
+            return null;
+        }
+
+        /**
+         * 現在の回答内容を一時保存する関数
+         */
+        function saveTemporaryAnswers() {
+            const tempAnswers = {};
+            currentQuestionsData.forEach(q => {
+                let answer = '';
+                if (q.type === 'text' || q.type === 'textarea' || q.type === 'yes_no_maybe' || q.type === 'maru_batsu' || q.type === 'number_block') {
+                    const inputElement = document.getElementById(q.answerId);
+                    if (inputElement) {
+                        answer = inputElement.value;
+                    }
+                } else if (q.type === 'radio') {
+                    const checkedRadio = document.querySelector(`input[name="${q.answerName}"]:checked`);
+                    if (checkedRadio) {
+                        answer = checkedRadio.value;
+                    }
+                }
+                // no_answerタイプも空文字列を保存
+                tempAnswers[q.id] = answer;
+            });
+            try {
+                localStorage.setItem(`${APP_ID}_temporaryAnswers`, JSON.stringify(tempAnswers));
+                showMessageBox('回答を一時保存しました。');
+            } catch (e) {
+                console.error('一時回答の保存に失敗しました:', e);
+                showMessageBox('一時回答の保存に失敗しました。ブラウザのストレージが上限に達している可能性があります。', true);
+            }
+        }
+
+        /**
+         * 一時保存された回答内容を復元する関数
+         */
+        function loadTemporaryAnswers() {
+            try {
+                const storedTempAnswers = localStorage.getItem(`${APP_ID}_temporaryAnswers`);
+                if (storedTempAnswers) {
+                    const tempAnswers = JSON.parse(storedTempAnswers);
+                    let restoredCount = 0;
+                    currentQuestionsData.forEach(q => {
+                        const answer = tempAnswers[q.id];
+                        if (answer !== undefined) { // answerがnull, undefined, "" の場合も考慮
+                            if (q.type === 'text' || q.type === 'textarea') {
+                                const inputElement = document.getElementById(q.answerId);
+                                if (inputElement) {
+                                    inputElement.value = answer;
+                                    restoredCount++;
+                                }
+                            } else if (q.type === 'radio') {
+                                const radioToSelect = document.querySelector(`input[name="${q.answerName}"][value="${answer}"]`);
+                                if (radioToSelect) {
+                                    radioToSelect.checked = true;
+                                    restoredCount++;
+                                }
+                            } else if (q.type === 'yes_no_maybe') {
+                                const hiddenInput = document.getElementById(q.answerId);
+                                if (hiddenInput) {
+                                    hiddenInput.value = answer;
+                                    // 対応するボタンの視覚的選択を復元
+                                    // 既存のリングクラスを全て削除してから適用
+                                    const questionItem = document.querySelector(`.question-item[data-question-id="${q.id}"]`);
+                                    if (questionItem) {
+                                        questionItem.querySelectorAll('.q4-button').forEach(btn => {
+                                            btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                                        });
+                                        const button = questionItem.querySelector(`.q4-button[data-value="${answer}"]`);
+                                        if (button) {
+                                            button.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                                            restoredCount++;
+                                        }
+                                    }
+                                }
+                            } else if (q.type === 'maru_batsu') {
+                                const hiddenInput = document.getElementById(q.answerId);
+                                if (hiddenInput) {
+                                    hiddenInput.value = answer;
+                                    const questionItem = document.querySelector(`.question-item[data-question-id="${q.id}"]`);
+                                    if (questionItem) {
+                                        questionItem.querySelectorAll('.q5-button').forEach(btn => {
+                                            btn.classList.remove('ring-2', 'ring-offset-2', 'ring-green-500');
+                                        });
+                                        const button = questionItem.querySelector(`.q5-button[data-value="${answer}"]`);
+                                        if (button) {
+                                            button.classList.add('ring-2', 'ring-offset-2', 'ring-green-500');
+                                            restoredCount++;
+                                        }
+                                    }
+                                }
+                            } else if (q.type === 'number_block') {
+                                const hiddenInput = document.getElementById(q.answerId);
+                                if (hiddenInput) {
+                                    hiddenInput.value = answer;
+                                    const questionItem = document.querySelector(`.question-item[data-question-id="${q.id}"]`);
+                                    if (questionItem) {
+                                        questionItem.querySelectorAll('.q6-button').forEach(btn => {
+                                            btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                                        });
+                                        const button = questionItem.querySelector(`.q6-button[data-value="${answer}"]`);
+                                        if (button) {
+                                            button.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                                            restoredCount++;
+                                        }
+                                    }
+                                }
+                            } else if (q.type === 'no_answer') {
+                                // 回答なし形式なので特にUIの復元は不要だが、回答が存在すれば復元カウント
+                                restoredCount++;
+                            }
+                        }
+                    });
+                    if (restoredCount > 0) {
+                        showMessageBox('一時保存された回答を復元しました。');
+                    }
+                }
+            } catch (e) {
+                console.error('一時回答の復元に失敗しました:', e);
+                showMessageBox('一時回答の復元に失敗しました。データが破損している可能性があります。', true);
+            }
+        }
+
+
+        /**
+         * ファイルをダウンロードするヘルパー関数
+         * @param {string} filename - ファイル名
+         * @param {string|Blob} data - ファイルの内容 (テキストまたはBlob)
+         * @param {string} mimeType - MIMEタイプ (例: 'text/plain', 'image/png')
+         */
+        function downloadFile(filename, data, mimeType) {
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- 画像拡大表示関連の関数 ---
+        const imageOverlay = document.getElementById('imageOverlay');
+        const enlargedImage = document.getElementById('enlargedImage');
+        const closeOverlayButton = document.getElementById('closeOverlayButton');
+
+        /**
+         * 画像オーバーレイを表示する関数
+         * @param {string} imageUrl - 拡大表示する画像のURL
+         */
+        function showImageOverlay(imageUrl) {
+            enlargedImage.src = imageUrl;
+            imageOverlay.classList.add('show');
+            document.body.style.overflow = 'hidden'; // 背景スクロールを禁止
+        }
+
+        /**
+         * 画像オーバーレイを非表示にする関数
+         */
+        function hideImageOverlay() {
+            imageOverlay.classList.remove('show');
+            document.body.style.overflow = ''; // 背景スクロールを許可
+            enlargedImage.src = ''; // 画像をクリア
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const backgroundMusic = document.getElementById('backgroundMusic');
+            const musicToggleButton = document.getElementById('musicToggleButton');
+            let isPlaying = true;
+
+            // ブラウザの自動再生ポリシーにより、手動で再生を開始する必要がある場合があります。
+            // ページロード時に再生を試み、失敗した場合はユーザーに操作を促します。
+            backgroundMusic.play().catch(error => {
+                console.log("自動再生がブロックされました:", error);
+                // ユーザーに再生を促すメッセージなどを表示することもできます
+            });
+
+            // 音楽が終了したときのイベントリスナー
+            backgroundMusic.addEventListener('ended', function() {
+                // 5秒後に音楽を再開
+                setTimeout(() => {
+                    if (isPlaying) { // 音楽が再生状態の場合のみ再開
+                        backgroundMusic.play();
+                    }
+                }, 5000); // 5000ミリ秒 = 5秒
+            });
+
+            musicToggleButton.addEventListener('click', function() {
+                if (isPlaying) {
+                    backgroundMusic.pause();
+                    musicToggleButton.textContent = '🎵 音楽を再生';
+                } else {
+                    backgroundMusic.play();
+                    musicToggleButton.textContent = '🎵 音楽を停止';
+                }
+                isPlaying = !isPlaying;
+            });
+
+            const dateTimeInput = document.getElementById('dateTimeInput');
+            const saveAnswersButton = document.getElementById('saveAnswersButton');
+            const outputQuestionsButton = document.getElementById('outputQuestionsButton');
+            const inputQuestionsButton = document.getElementById('inputQuestionsButton');
+            const editQuestionsButton = document.getElementById('editQuestionsButton');
+            const addNewQuestionButton = document.getElementById('addNewQuestionButton');
+            const temporarySaveButton = document.getElementById('temporarySaveButton'); // 新しいボタン
+
+
+            // --- 画像オーバーレイのイベントリスナー ---
+            // 「✕」ボタンで閉じる
+            closeOverlayButton.addEventListener('click', hideImageOverlay);
+            // オーバーレイ背景のクリックで閉じる (画像自体は除く)
+            imageOverlay.addEventListener('click', (event) => {
+                if (event.target === imageOverlay) { // クリックされたのがオーバーレイ自体の場合
+                    hideImageOverlay();
+                }
+            });
+
+
+            // 現在の日時をデフォルト値として設定
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // UTCからローカルタイムへのオフセットを調整
+            dateTimeInput.value = now.toISOString().slice(0, 16);
+
+            // ページロード時に質問データを読み込み、レンダリング
+            const storedQuestions = loadQuestionsFromLocalStorage();
+            if (storedQuestions && storedQuestions.length > 0) {
+                currentQuestionsData = storedQuestions;
+            } else {
+                currentQuestionsData = initialQuestionsData;
+                saveQuestionsToLocalStorage(currentQuestionsData); // 初回ロード時に初期データを保存
+            }
+            renderQuestions(); // 質問をレンダリング
+            loadTemporaryAnswers(); // 質問レンダリング後に一時保存された回答を復元
+
+
+            // 回答を保存ボタンのイベントリスナー
+            saveAnswersButton.addEventListener('click', function() {
+                // 日時を取得し、yy_mmdd形式にフォーマット
+                const selectedDateTime = new Date(dateTimeInput.value);
+                const year = String(selectedDateTime.getFullYear()).slice(-2);
+                const month = String(selectedDateTime.getMonth() + 1).padStart(2, '0');
+                const day = String(selectedDateTime.getDate()).padStart(2, '0');
+                const formattedDate = `${year}_${month}${day}`;
+
+                const answers = [];
+                currentQuestionsData.forEach(q => {
+                    let answer = '';
+                    if (q.type === 'text' || q.type === 'yes_no_maybe' || q.type === 'maru_batsu' || q.type === 'number_block') {
+                        const inputElement = document.getElementById(q.answerId);
+                        if (inputElement) {
+                            answer = inputElement.value;
+                        }
+                    } else if (q.type === 'textarea') {
+                        const textareaElement = document.getElementById(q.answerId);
+                        if (textareaElement) {
+                            // 改行コードをLFに統一
+                            let processedAnswer = textareaElement.value.replace(/\r\n|\r/g, '\n');
+                            // ダブルクォーテーションをエスケープ
+                            processedAnswer = processedAnswer.replace(/"/g, '""');
+                            // タブ文字や改行が含まれる場合、全体をダブルクォーテーションで囲む
+                            if (processedAnswer.includes('\t') || processedAnswer.includes('\n')) {
+                                processedAnswer = `"${processedAnswer}"`;
+                            }
+                            answer = processedAnswer;
+                        }
+                    } else if (q.type === 'radio') {
+                        const checkedRadio = document.querySelector(`input[name="${q.answerName}"]:checked`);
+                        if (checkedRadio) {
+                            answer = checkedRadio.value;
+                        }
+                    } else if (q.type === 'no_answer') {
+                        answer = ''; // 回答なし形式の場合は空文字列を保存
+                    }
+                    answers.push(answer);
+                });
+
+                // タブ区切り形式のデータを作成
+                const data = `${formattedDate}\t${answers.join('\t')}`;
+
+                // Blobを作成し、ダウンロードリンクを生成
+                const blob = new Blob([data], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                // ダウンロード用のa要素を作成し、クリックしてダウンロード
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `回答データ_${formattedDate}.txt`; // ファイル名
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url); // URLを解放
+                showMessageBox('回答が保存されました。');
+            });
+
+            // 「出力」ボタンのイベントリスナー
+            outputQuestionsButton.addEventListener('click', function() {
+                // すべての質問データを単一のJSONファイルにまとめる
+                const allQuestionsData = {
+                    questions: currentQuestionsData.map(q => {
+                        // 画像データがBase64でない場合、ダミーBase64に変換して保存
+                        const imageToSave = q.image && q.image.startsWith('data:image/') ? q.image : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+                        return { ...q, image: imageToSave };
+                    })
+                };
+                downloadFile('all_questions_data.json', JSON.stringify(allQuestionsData, null, 2), 'application/json;charset=utf-8');
+                showMessageBox('すべての質問データが単一のJSONファイルとして出力されました。');
+            });
+
+            // 隠しファイル入力要素の作成
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.multiple = false; // 単一ファイルのみ選択を許可
+            fileInput.accept = '.json'; // JSONファイルのみを受け入れる
+            fileInput.style.display = 'none'; // 非表示にする
+            document.body.appendChild(fileInput);
+
+            // 「入力」ボタンのイベントリスナー
+            inputQuestionsButton.addEventListener('click', function() {
+                fileInput.click(); // 隠しファイル入力要素をクリックしてファイル選択ダイアログを開く
+            });
+
+            // ファイル選択時のイベントリスナー
+            fileInput.addEventListener('change', async function(event) {
+                const files = event.target.files;
+                if (files.length === 0) {
+                    return;
+                }
+
+                const file = files[0]; // 単一ファイルのみを処理
+                if (file.name !== 'all_questions_data.json') {
+                    showMessageBox('選択されたファイルは "all_questions_data.json" ではありません。正しいファイルを選択してください。', true);
+                    fileInput.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const loadedData = JSON.parse(e.target.result);
+                        if (loadedData.questions && Array.isArray(loadedData.questions)) {
+                            currentQuestionsData = loadedData.questions;
+                            renderQuestions();
+                            saveQuestionsToLocalStorage(currentQuestionsData);
+                            showMessageBox('質問が正常に復元されました。');
+                        } else {
+                            showMessageBox('JSONファイルの形式が正しくありません。', true);
+                        }
+                    } catch (error) {
+                        console.error("JSONファイルのパースに失敗しました:", error);
+                        showMessageBox('JSONファイルの読み込みに失敗しました。ファイルが破損している可能性があります。', true);
+                    }
+                };
+                reader.onerror = (e) => {
+                    console.error("ファイル読み込みエラー:", file.name, e);
+                    showMessageBox(`ファイルの読み込み中にエラーが発生しました: ${file.name}`, true);
+                };
+                reader.readAsText(file); // JSONファイルをテキストとして読み込む
+                fileInput.value = ''; // 同じファイルを再度選択できるようにinputをクリア
+            });
+
+            // 「編集」ボタンのイベントリスナー
+            editQuestionsButton.addEventListener('click', function() {
+                isEditMode = !isEditMode; // 編集モードを切り替える
+                if (isEditMode) {
+                    editQuestionsButton.textContent = '編集モード終了';
+                    editQuestionsButton.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                    editQuestionsButton.classList.add('bg-orange-600', 'hover:bg-orange-700');
+                    showMessageBox('編集モードに入りました。各質問の右上に編集・削除・並べ替えボタンが表示されます。');
+                } else {
+                    editQuestionsButton.textContent = '編集';
+                    editQuestionsButton.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+                    editQuestionsButton.classList.add('bg-gray-600', 'hover:bg-gray-700');
+                    saveQuestionsToLocalStorage(currentQuestionsData); // 編集モード終了時に保存
+                    showMessageBox('編集モードを終了しました。変更が保存されました。');
+                }
+                renderQuestions(); // 編集モードの切り替えに合わせて質問を再レンダリング
+            });
+
+            // 「新規質問を追加」ボタンのイベントリスナー
+            addNewQuestionButton.addEventListener('click', addNewQuestion);
+
+            // 「一時保存」ボタンのイベントリスナー
+            temporarySaveButton.addEventListener('click', saveTemporaryAnswers);
+        });
+    </script>
+</body>
+</html>

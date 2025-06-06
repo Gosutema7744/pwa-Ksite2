@@ -21,6 +21,8 @@
         }
         /* 編集モード時のスタイル */
         .question-item.editing {
+            flex-direction: column; /* Stack items vertically when editing */
+            align-items: flex-start; /* Align items to the start (left) */
             border: 2px dashed #a0aec0; /* 編集中の枠線 */
             padding: 1rem;
         }
@@ -101,12 +103,28 @@
         #closeOverlayButton:hover {
             background-color: rgba(255, 255, 255, 0.5);
         }
+
+        /* Custom Confirmation Modal Styles */
+        #confirmationModal {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
 
     <!-- メッセージボックス -->
     <div id="messageBox" class="hidden"></div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmationModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+            <p id="confirmationMessage" class="text-lg font-semibold text-gray-800 mb-4">本当に削除しますか？</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirmYesButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300">はい</button>
+                <button id="confirmNoButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full shadow-md transition duration-300">いいえ</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 背景音楽 -->
     <!-- loop属性は、音楽が自然に終了した場合の自動ループを保証しますが、
@@ -135,7 +153,7 @@
         <!-- 日時選択 -->
         <div class="mb-6">
             <label for="dateTimeInput" class="block text-lg font-semibold text-gray-700 mb-2">日時を選択:</label>
-            <input type="datetime-local" id="dateTimeInput" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200 text-gray-800">
+            <input type="date" id="dateTimeInput" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200 text-gray-800">
         </div>
 
         <!-- 質問を動的に挿入するコンテナ -->
@@ -485,6 +503,41 @@
             }
         }
 
+        // Custom confirmation modal elements
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmationMessage = document.getElementById('confirmationMessage');
+        const confirmYesButton = document.getElementById('confirmYesButton');
+        const confirmNoButton = document.getElementById('confirmNoButton');
+
+        let confirmCallback = null; // Callback for when the user confirms
+
+        function showConfirmationModal(message, callback) {
+            confirmationMessage.textContent = message;
+            confirmCallback = callback;
+            confirmationModal.classList.remove('hidden');
+        }
+
+        function hideConfirmationModal() {
+            confirmationModal.classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        // Event listeners for custom confirmation modal buttons
+        confirmYesButton.addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback(true);
+            }
+            hideConfirmationModal();
+        });
+
+        confirmNoButton.addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback(false);
+            }
+            hideConfirmationModal();
+        });
+
+
         /**
          * 個別の質問の編集モードを切り替える関数
          * @param {number} questionId - 編集する質問のID
@@ -497,7 +550,7 @@
             document.querySelectorAll('.question-item[data-editing="true"]').forEach(item => {
                 const itemId = parseInt(item.dataset.questionId);
                 if (itemId !== questionId) {
-                    cancelQuestionEditing(itemId); // 他の質問の編集をキャンセル
+                    cancelQuestionEditing(itemId);
                 }
             });
 
@@ -505,22 +558,18 @@
             questionItem.classList.add('editing');
             questionItem.dataset.editing = 'true';
 
-            const questionImageElement = questionItem.querySelector('.question-image'); // This is the <img>
-            const flexGrowDiv = questionItem.querySelector('.flex-grow'); // Contains text and answer inputs
+            const questionImageElement = questionItem.querySelector('.question-image');
 
-            const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
-            const questionData = currentQuestionsData[qIndex];
-
-            // 既存の質問文要素 (pタグ) を削除
-            const questionTextElement = questionItem.querySelector('.question-text');
-            if (questionTextElement) {
-                questionTextElement.remove();
+            // 既存の flex-grow div (表示モードのコンテンツ) を削除
+            const flexGrowDiv = questionItem.querySelector('.flex-grow');
+            if (flexGrowDiv) {
+                flexGrowDiv.remove();
             }
 
-            // 既存の画像ファイル入力要素を削除（再追加するため）
-            let existingImageInput = questionItem.querySelector('.question-image-input');
-            if (existingImageInput) {
-                existingImageInput.remove();
+            // 既存の画像ファイル入力要素を削除（再作成するため）
+            let currentImageInput = questionItem.querySelector('.question-image-input');
+            if (currentImageInput) {
+                currentImageInput.remove();
             }
 
             // 画像ファイル入力要素を再作成して画像の下に配置
@@ -531,15 +580,17 @@
             questionImageElement.insertAdjacentElement('afterend', newImageFileInput);
 
 
-            // flexGrowDiv の中身を一旦クリア (既存の回答UIもここで削除される)
-            flexGrowDiv.innerHTML = '';
+            // すべての編集フィールドを格納する新しいコンテナを作成
+            const questionEditingArea = document.createElement('div');
+            questionEditingArea.classList.add('question-editing-area', 'flex', 'flex-col', 'gap-2', 'mt-4', 'w-full');
+            // この新しい編集エリアを画像ファイル入力のすぐ下に挿入
+            newImageFileInput.insertAdjacentElement('afterend', questionEditingArea);
 
-            // --- 編集UIを構築 ---
-            const editableContentContainer = document.createElement('div');
-            editableContentContainer.classList.add('flex', 'flex-col', 'gap-2', 'mb-2'); // 縦並びにして間隔を空ける
+            // --- questionEditingArea内に編集UIを構築 ---
 
             // 質問文エディタ
             let editorElement;
+            const questionData = currentQuestionsData.find(q => q.id === questionId); // questionDataをここで定義
             if (questionData.type === 'textarea') {
                 editorElement = document.createElement('textarea');
                 editorElement.rows = 3;
@@ -547,9 +598,9 @@
                 editorElement = document.createElement('input');
                 editorElement.type = 'text';
             }
-            editorElement.value = questionData.text; // 元の質問テキストを設定
+            editorElement.value = questionData.text;
             editorElement.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'question-text-editor');
-            editableContentContainer.appendChild(editorElement);
+            questionEditingArea.appendChild(editorElement);
 
             // 質問形式選択ドロップダウン
             const typeSelect = document.createElement('select');
@@ -564,18 +615,13 @@
                 }
                 typeSelect.appendChild(option);
             });
-            editableContentContainer.appendChild(typeSelect);
+            questionEditingArea.appendChild(typeSelect);
 
-            // editableContentContainerをflexGrowDivに追加
-            flexGrowDiv.appendChild(editableContentContainer);
-
-
-            // タイプ変更イベントリスナー (既存のロジックを維持しつつ、EditableContentContainerの後に配置)
+            // タイプ変更イベントリスナー
             typeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
                 questionData.type = newType;
 
-                // 新しいタイプに基づいてプロパティをクリーンアップ/デフォルト設定
                 if (newType !== 'radio' && newType !== 'yes_no_maybe' && newType !== 'maru_batsu') {
                     delete questionData.options;
                     delete questionData.answerName;
@@ -589,7 +635,6 @@
                         questionData.answerName = `q${questionData.id}_choice`;
                     }
                 }
-
                 if (newType !== 'number_block') {
                     delete questionData.min;
                     delete questionData.max;
@@ -598,53 +643,45 @@
                     if (questionData.max === undefined) questionData.max = 10;
                 }
                 
-                // 更新された質問データ (タイプ変更を含む) をLocalStorageに保存
                 saveQuestionsToLocalStorage(currentQuestionsData);
-
-                // 全ての質問を再レンダリングする。これにより、全ての質問の編集モードが終了する。
-                renderQuestions();
-
-                // 対象の質問を再度編集モードにする。これにより、正しい編集UIが表示される。
-                toggleQuestionEditing(questionId);
+                renderQuestions(); // 全てを再レンダリングし、編集モードを一度終了
+                toggleQuestionEditing(questionId); // 更新されたUIで再度編集モードに入る
             });
 
-
-            // タイプに応じた編集UIをeditableContentContainerの後に配置
-            // （ここではflexGrowDivに直接appendする形だが、editableContentContainerの後に来る）
+            // タイプに応じた編集UIをquestionEditingAreaに追加
             if (questionData.type === 'radio' || questionData.type === 'yes_no_maybe' || questionData.type === 'maru_batsu') {
                 const optionsEditor = document.createElement('textarea');
                 optionsEditor.rows = 3;
                 optionsEditor.placeholder = '選択肢をカンマ区切りで入力してください (例: 選択肢1,選択肢2)';
                 optionsEditor.value = questionData.options ? questionData.options.join(',') : '';
                 optionsEditor.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'options-editor');
-                flexGrowDiv.appendChild(optionsEditor);
+                questionEditingArea.appendChild(optionsEditor);
             } else if (questionData.type === 'number_block') {
                 const minInput = document.createElement('input');
                 minInput.type = 'number';
                 minInput.placeholder = '最小値';
                 minInput.value = questionData.min !== undefined ? questionData.min : '';
                 minInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'min-input');
-                flexGrowDiv.appendChild(minInput);
+                questionEditingArea.appendChild(minInput);
 
                 const maxInput = document.createElement('input');
                 maxInput.type = 'number';
                 maxInput.placeholder = '最大値';
                 maxInput.value = questionData.max !== undefined ? questionData.max : '';
                 maxInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'max-input');
-                flexGrowDiv.appendChild(maxInput);
+                questionEditingArea.appendChild(maxInput);
             } else if (questionData.type === 'no_answer') {
-                // 回答なし形式の場合、特別な編集フィールドは不要
                 const infoText = document.createElement('p');
                 infoText.classList.add('text-sm', 'text-gray-500', 'mt-2');
                 infoText.textContent = 'この質問形式には回答欄がありません。';
-                flexGrowDiv.appendChild(infoText);
+                questionEditingArea.appendChild(infoText);
             }
 
 
             // コントロールボタン (保存/キャンセル) を更新
             const editControlsContainer = questionItem.querySelector('.absolute.flex');
             if (editControlsContainer) {
-                Array.from(editControlsContainer.children).forEach(child => child.remove()); // 元のボタンを削除
+                Array.from(editControlsContainer.children).forEach(child => child.remove());
 
                 const saveButton = document.createElement('button');
                 saveButton.textContent = '保存';
@@ -771,12 +808,16 @@
          * @param {number} questionId - 削除する質問のID
          */
         function deleteQuestion(questionId) {
-            if (confirm('この質問を削除してもよろしいですか？')) {
-                currentQuestionsData = currentQuestionsData.filter(q => q.id !== questionId);
-                saveQuestionsToLocalStorage(currentQuestionsData);
-                renderQuestions();
-                showMessageBox('質問が削除されました。');
-            }
+            showConfirmationModal('この質問を削除してもよろしいですか？', (confirmed) => {
+                if (confirmed) {
+                    currentQuestionsData = currentQuestionsData.filter(q => q.id !== questionId);
+                    saveQuestionsToLocalStorage(currentQuestionsData);
+                    renderQuestions();
+                    showMessageBox('質問が削除されました。');
+                } else {
+                    showMessageBox('質問の削除がキャンセルされました。');
+                }
+            });
         }
 
         /**
@@ -1068,8 +1109,8 @@
 
             // 現在の日時をデフォルト値として設定
             const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // UTCからローカルタイムへのオフセットを調整
-            dateTimeInput.value = now.toISOString().slice(0, 16);
+            // datetime-localからdateに変更したため、slice(0, 10)で日付部分のみを抽出
+            dateTimeInput.value = now.toISOString().slice(0, 10);
 
             // ページロード時に質問データを読み込み、レンダリング
             const storedQuestions = loadQuestionsFromLocalStorage();
@@ -1235,3 +1276,7 @@
     </script>
 </body>
 </html>
+
+
+
+

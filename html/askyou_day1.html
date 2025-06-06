@@ -16,7 +16,7 @@
         /* カスタムスタイルで画像とテキストの垂直方向の配置を調整 */
         .question-item {
             display: flex;
-            align-items: center; /* 垂直方向中央揃え */
+            align-items: flex-start; /* 垂直方向上揃えに変更 */
             gap: 1rem; /* 画像とテキストの間のスペース */
         }
         /* 編集モード時のスタイル */
@@ -112,7 +112,7 @@
     <!-- loop属性は、音楽が自然に終了した場合の自動ループを保証しますが、
          endedイベントリスナーで5秒の遅延を挟むことで、
          このループ動作をカスタマイズします。 -->
-    <audio id="backgroundMusic" src="example.mp3" autoplay loop></audio>
+    <audio id="backgroundMusic" src="/pwa-Ksite2/music/week.mp3" autoplay loop></audio>
 
     <!-- 音楽再生/一時停止ボタン -->
     <div class="absolute top-4 right-4">
@@ -505,22 +505,59 @@
             questionItem.classList.add('editing');
             questionItem.dataset.editing = 'true';
 
-            const questionTextElement = questionItem.querySelector('.question-text'); // これは常に<p>タグであるはず
-            const questionImageElement = questionItem.querySelector('.question-image');
-            const flexGrowDiv = questionItem.querySelector('.flex-grow');
+            const questionImageElement = questionItem.querySelector('.question-image'); // This is the <img>
+            const flexGrowDiv = questionItem.querySelector('.flex-grow'); // Contains text and answer inputs
 
             const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
             const questionData = currentQuestionsData[qIndex];
 
             // 既存の回答表示UIを削除 (もしあれば)
+            // (これは質問文の直後に来る回答入力要素や選択肢など)
             const existingAnswerDisplayElements = flexGrowDiv.querySelectorAll('input[id$="Answer"]:not(.question-text-editor):not(.min-input):not(.max-input), textarea[id$="Answer"]:not(.question-text-editor):not(.options-editor), .space-y-2, .flex.space-x-4, .flex.flex-wrap, input[type="hidden"][id$="Answer"]');
             existingAnswerDisplayElements.forEach(el => el.remove());
 
+
+            // 既存の質問文要素 (pタグ) を削除
+            const questionTextElement = questionItem.querySelector('.question-text');
+            if (questionTextElement) {
+                questionTextElement.remove();
+            }
+
+            // 既存の画像ファイル入力要素を削除（再追加するため）
+            let existingImageInput = questionItem.querySelector('.question-image-input');
+            if (existingImageInput) {
+                existingImageInput.remove();
+            }
+
+            // 画像ファイル入力要素を再作成して画像の下に配置
+            const newImageFileInput = document.createElement('input');
+            newImageFileInput.type = 'file';
+            newImageFileInput.accept = 'image/*';
+            newImageFileInput.classList.add('mt-2', 'p-1', 'border', 'border-gray-300', 'rounded-md', 'question-image-input');
+            questionImageElement.insertAdjacentElement('afterend', newImageFileInput);
+
+
             // --- 編集UIを構築 ---
+            // flexGrowDivに新しいコンテナを作成し、その中に質問文エディタとタイプ選択を配置
+            const editableContentContainer = document.createElement('div');
+            editableContentContainer.classList.add('flex', 'flex-col', 'gap-2', 'mb-2'); // 縦並びにして間隔を空ける
+
+            // 質問文エディタ
+            let editorElement;
+            if (questionData.type === 'textarea') {
+                editorElement = document.createElement('textarea');
+                editorElement.rows = 3;
+            } else {
+                editorElement = document.createElement('input');
+                editorElement.type = 'text';
+            }
+            editorElement.value = questionData.text; // 元の質問テキストを設定
+            editorElement.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'question-text-editor');
+            editableContentContainer.appendChild(editorElement);
 
             // 質問形式選択ドロップダウン
             const typeSelect = document.createElement('select');
-            typeSelect.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'mb-2', 'question-type-editor');
+            typeSelect.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'question-type-editor');
             const types = ['text', 'textarea', 'radio', 'yes_no_maybe', 'maru_batsu', 'number_block', 'no_answer'];
             types.forEach(type => {
                 const option = document.createElement('option');
@@ -531,8 +568,13 @@
                 }
                 typeSelect.appendChild(option);
             });
-            // 質問文要素の親要素の直前に挿入
-            questionTextElement.parentElement.insertAdjacentElement('beforebegin', typeSelect);
+            editableContentContainer.appendChild(typeSelect);
+
+            // editableContentContainerをflexGrowDivの先頭に追加
+            flexGrowDiv.prepend(editableContentContainer);
+
+
+            // タイプ変更イベントリスナー (既存のロジックを維持しつつ、EditableContentContainerの後に配置)
             typeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
                 questionData.type = newType;
@@ -541,7 +583,7 @@
                 if (newType !== 'radio' && newType !== 'yes_no_maybe' && newType !== 'maru_batsu') {
                     delete questionData.options;
                     delete questionData.answerName;
-                } else { // 新しいタイプがラジオ、YES/NO/MAYBE、マル・バツの場合
+                } else {
                     if (!questionData.options) {
                         if (newType === 'radio') questionData.options = ['選択肢1', '選択肢2'];
                         else if (newType === 'yes_no_maybe') questionData.options = ['YES', 'NO', 'MAYBE'];
@@ -555,7 +597,7 @@
                 if (newType !== 'number_block') {
                     delete questionData.min;
                     delete questionData.max;
-                } else { // 新しいタイプが数字ブロックの場合
+                } else {
                     if (questionData.min === undefined) questionData.min = 1;
                     if (questionData.max === undefined) questionData.max = 10;
                 }
@@ -570,27 +612,9 @@
                 toggleQuestionEditing(questionId);
             });
 
-            // 質問文エディタ
-            let textEditor;
-            if (questionData.type === 'textarea') {
-                textEditor = document.createElement('textarea');
-                textEditor.rows = 3;
-            } else {
-                textEditor = document.createElement('input');
-                textEditor.type = 'text';
-            }
-            textEditor.value = questionTextElement.textContent; // 現在表示されているテキストを使用
-            textEditor.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'question-text-editor');
-            questionTextElement.replaceWith(textEditor); // 元の<p>タグをエディタに置き換える
 
-            // 画像ファイル入力
-            const imageFileInput = document.createElement('input');
-            imageFileInput.type = 'file';
-            imageFileInput.accept = 'image/*';
-            imageFileInput.classList.add('mt-2', 'p-1', 'border', 'border-gray-300', 'rounded-md', 'question-image-input');
-            questionImageElement.insertAdjacentElement('afterend', imageFileInput);
-
-            // タイプに応じた編集UI
+            // タイプに応じた編集UIをeditableContentContainerの後に配置
+            // （ここではflexGrowDivに直接appendする形だが、editableContentContainerの後ろに来る）
             if (questionData.type === 'radio' || questionData.type === 'yes_no_maybe' || questionData.type === 'maru_batsu') {
                 const optionsEditor = document.createElement('textarea');
                 optionsEditor.rows = 3;

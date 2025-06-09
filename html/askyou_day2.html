@@ -21,6 +21,8 @@
         }
         /* 編集モード時のスタイル */
         .question-item.editing {
+            flex-direction: column; /* Stack items vertically when editing */
+            align-items: flex-start; /* Align items to the start (left) */
             border: 2px dashed #a0aec0; /* 編集中の枠線 */
             padding: 1rem;
         }
@@ -101,6 +103,11 @@
         #closeOverlayButton:hover {
             background-color: rgba(255, 255, 255, 0.5);
         }
+
+        /* Custom Confirmation Modal Styles */
+        #confirmationModal {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
@@ -108,11 +115,22 @@
     <!-- メッセージボックス -->
     <div id="messageBox" class="hidden"></div>
 
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmationModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+            <p id="confirmationMessage" class="text-lg font-semibold text-gray-800 mb-4">本当に削除しますか？</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirmYesButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition duration-300">はい</button>
+                <button id="confirmNoButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full shadow-md transition duration-300">いいえ</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 背景音楽 -->
     <!-- loop属性は、音楽が自然に終了した場合の自動ループを保証しますが、
          endedイベントリスナーで5秒の遅延を挟むことで、
          このループ動作をカスタマイズします。 -->
-    <audio id="backgroundMusic" src="/pwa-Ksite2/music/week.mp3" autoplay loop></audio>
+    <audio id="backgroundMusic" src="pwa-Ksite2/music/day1.mp3" autoplay loop></audio>
 
     <!-- 音楽再生/一時停止ボタン -->
     <div class="absolute top-4 right-4">
@@ -176,7 +194,7 @@
 
     <script>
         // --- アプリケーションインスタンスID ---
-        // このアプリケーションを複数作成する場合、localStorageのキーが競合しないように
+        // このアプリケーションを複数作成する場合、IndexedDBのキーが競合しないように
         // 各インスタンスに異なるIDを設定してください。
         // 例: 'question_app_instance_1', 'question_app_instance_2', 'question_app_instance_3'
         const APP_ID = 'question_app_instance_1';
@@ -238,8 +256,103 @@
             }
         ];
 
-        let currentQuestionsData = []; // This will hold the active questions data, loaded from localStorage or initial.
+        let currentQuestionsData = []; // This will hold the active questions data, loaded from IndexedDB or initial.
         let isEditMode = false; // 編集モードの状態を管理するフラグ
+
+        // IndexedDB setup
+        const DB_NAME = 'QuestionAppDB';
+        const DB_VERSION = 1;
+        const QUESTIONS_STORE = 'questions';
+        const ANSWERS_STORE = 'answers';
+
+        let db = null; // Will hold the IndexedDB instance
+
+        /**
+         * IndexedDBを開くまたはアップグレードする関数
+         * @returns {Promise<IDBDatabase>} IndexedDBデータベースインスタンスのPromise
+         */
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    // Create object stores if they don't exist
+                    if (!db.objectStoreNames.contains(QUESTIONS_STORE)) {
+                        db.createObjectStore(QUESTIONS_STORE);
+                    }
+                    if (!db.objectStoreNames.contains(ANSWERS_STORE)) {
+                        db.createObjectStore(ANSWERS_STORE);
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onerror = (event) => {
+                    console.error("IndexedDB error:", event.target.error);
+                    showMessageBox("データベースの開中にエラーが発生しました。", true);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        /**
+         * IndexedDBにデータを保存する関数
+         * @param {string} storeName - オブジェクトストアの名前
+         * @param {string} key - データのキー
+         * @param {any} data - 保存するデータ
+         * @returns {Promise<void>}
+         */
+        async function putData(storeName, key, data) {
+            try {
+                if (!db) db = await openDB(); // Ensure DB is open
+                const transaction = db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.put(data, key);
+
+                return new Promise((resolve, reject) => {
+                    request.onsuccess = () => resolve();
+                    request.onerror = (event) => {
+                        console.error(`Error putting data to ${storeName}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                });
+            } catch (error) {
+                console.error("Failed to put data:", error);
+                showMessageBox("データの保存に失敗しました。", true);
+                throw error;
+            }
+        }
+
+        /**
+         * IndexedDBからデータを取得する関数
+         * @param {string} storeName - オブジェクトストアの名前
+         * @param {string} key - データのキー
+         * @returns {Promise<any>} 取得したデータ、またはundefined
+         */
+        async function getData(storeName, key) {
+            try {
+                if (!db) db = await openDB(); // Ensure DB is open
+                const transaction = db.transaction([storeName], 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.get(key);
+
+                return new Promise((resolve, reject) => {
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = (event) => {
+                        console.error(`Error getting data from ${storeName}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                });
+            } catch (error) {
+                console.error("Failed to get data:", error);
+                showMessageBox("データの読み込みに失敗しました。", true);
+                throw error;
+            }
+        }
 
         // メッセージボックス表示用の関数
         function showMessageBox(message, isError = false) {
@@ -485,6 +598,41 @@
             }
         }
 
+        // Custom confirmation modal elements
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmationMessage = document.getElementById('confirmationMessage');
+        const confirmYesButton = document.getElementById('confirmYesButton');
+        const confirmNoButton = document.getElementById('confirmNoButton');
+
+        let confirmCallback = null; // Callback for when the user confirms
+
+        function showConfirmationModal(message, callback) {
+            confirmationMessage.textContent = message;
+            confirmCallback = callback;
+            confirmationModal.classList.remove('hidden');
+        }
+
+        function hideConfirmationModal() {
+            confirmationModal.classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        // Event listeners for custom confirmation modal buttons
+        confirmYesButton.addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback(true);
+            }
+            hideConfirmationModal();
+        });
+
+        confirmNoButton.addEventListener('click', () => {
+            if (confirmCallback) {
+                confirmCallback(false);
+            }
+            hideConfirmationModal();
+        });
+
+
         /**
          * 個別の質問の編集モードを切り替える関数
          * @param {number} questionId - 編集する質問のID
@@ -497,7 +645,7 @@
             document.querySelectorAll('.question-item[data-editing="true"]').forEach(item => {
                 const itemId = parseInt(item.dataset.questionId);
                 if (itemId !== questionId) {
-                    cancelQuestionEditing(itemId); // 他の質問の編集をキャンセル
+                    cancelQuestionEditing(itemId);
                 }
             });
 
@@ -505,28 +653,18 @@
             questionItem.classList.add('editing');
             questionItem.dataset.editing = 'true';
 
-            const questionImageElement = questionItem.querySelector('.question-image'); // This is the <img>
-            const flexGrowDiv = questionItem.querySelector('.flex-grow'); // Contains text and answer inputs
+            const questionImageElement = questionItem.querySelector('.question-image');
 
-            const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
-            const questionData = currentQuestionsData[qIndex];
-
-            // 既存の回答表示UIを削除 (もしあれば)
-            // (これは質問文の直後に来る回答入力要素や選択肢など)
-            const existingAnswerDisplayElements = flexGrowDiv.querySelectorAll('input[id$="Answer"]:not(.question-text-editor):not(.min-input):not(.max-input), textarea[id$="Answer"]:not(.question-text-editor):not(.options-editor), .space-y-2, .flex.space-x-4, .flex.flex-wrap, input[type="hidden"][id$="Answer"]');
-            existingAnswerDisplayElements.forEach(el => el.remove());
-
-
-            // 既存の質問文要素 (pタグ) を削除
-            const questionTextElement = questionItem.querySelector('.question-text');
-            if (questionTextElement) {
-                questionTextElement.remove();
+            // 既存の flex-grow div (表示モードのコンテンツ) を削除
+            const flexGrowDiv = questionItem.querySelector('.flex-grow');
+            if (flexGrowDiv) {
+                flexGrowDiv.remove();
             }
 
-            // 既存の画像ファイル入力要素を削除（再追加するため）
-            let existingImageInput = questionItem.querySelector('.question-image-input');
-            if (existingImageInput) {
-                existingImageInput.remove();
+            // 既存の画像ファイル入力要素を削除（再作成するため）
+            let currentImageInput = questionItem.querySelector('.question-image-input');
+            if (currentImageInput) {
+                currentImageInput.remove();
             }
 
             // 画像ファイル入力要素を再作成して画像の下に配置
@@ -537,13 +675,17 @@
             questionImageElement.insertAdjacentElement('afterend', newImageFileInput);
 
 
-            // --- 編集UIを構築 ---
-            // flexGrowDivに新しいコンテナを作成し、その中に質問文エディタとタイプ選択を配置
-            const editableContentContainer = document.createElement('div');
-            editableContentContainer.classList.add('flex', 'flex-col', 'gap-2', 'mb-2'); // 縦並びにして間隔を空ける
+            // すべての編集フィールドを格納する新しいコンテナを作成
+            const questionEditingArea = document.createElement('div');
+            questionEditingArea.classList.add('question-editing-area', 'flex', 'flex-col', 'gap-2', 'mt-4', 'w-full');
+            // この新しい編集エリアを画像ファイル入力のすぐ下に挿入
+            newImageFileInput.insertAdjacentElement('afterend', questionEditingArea);
+
+            // --- questionEditingArea内に編集UIを構築 ---
 
             // 質問文エディタ
             let editorElement;
+            const questionData = currentQuestionsData.find(q => q.id === questionId); // questionDataをここで定義
             if (questionData.type === 'textarea') {
                 editorElement = document.createElement('textarea');
                 editorElement.rows = 3;
@@ -551,9 +693,9 @@
                 editorElement = document.createElement('input');
                 editorElement.type = 'text';
             }
-            editorElement.value = questionData.text; // 元の質問テキストを設定
+            editorElement.value = questionData.text;
             editorElement.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'question-text-editor');
-            editableContentContainer.appendChild(editorElement);
+            questionEditingArea.appendChild(editorElement);
 
             // 質問形式選択ドロップダウン
             const typeSelect = document.createElement('select');
@@ -568,18 +710,13 @@
                 }
                 typeSelect.appendChild(option);
             });
-            editableContentContainer.appendChild(typeSelect);
+            questionEditingArea.appendChild(typeSelect);
 
-            // editableContentContainerをflexGrowDivの先頭に追加
-            flexGrowDiv.prepend(editableContentContainer);
-
-
-            // タイプ変更イベントリスナー (既存のロジックを維持しつつ、EditableContentContainerの後に配置)
-            typeSelect.addEventListener('change', (e) => {
+            // タイプ変更イベントリスナー
+            typeSelect.addEventListener('change', async (e) => {
                 const newType = e.target.value;
                 questionData.type = newType;
 
-                // 新しいタイプに基づいてプロパティをクリーンアップ/デフォルト設定
                 if (newType !== 'radio' && newType !== 'yes_no_maybe' && newType !== 'maru_batsu') {
                     delete questionData.options;
                     delete questionData.answerName;
@@ -593,7 +730,6 @@
                         questionData.answerName = `q${questionData.id}_choice`;
                     }
                 }
-
                 if (newType !== 'number_block') {
                     delete questionData.min;
                     delete questionData.max;
@@ -602,53 +738,45 @@
                     if (questionData.max === undefined) questionData.max = 10;
                 }
                 
-                // 更新された質問データ (タイプ変更を含む) をLocalStorageに保存
-                saveQuestionsToLocalStorage(currentQuestionsData);
-
-                // 全ての質問を再レンダリングする。これにより、全ての質問の編集モードが終了する。
-                renderQuestions();
-
-                // 対象の質問を再度編集モードにする。これにより、正しい編集UIが表示される。
-                toggleQuestionEditing(questionId);
+                await saveQuestionsToIndexDB(currentQuestionsData);
+                renderQuestions(); // 全てを再レンダリングし、編集モードを一度終了
+                toggleQuestionEditing(questionId); // 更新されたUIで再度編集モードに入る
             });
 
-
-            // タイプに応じた編集UIをeditableContentContainerの後に配置
-            // （ここではflexGrowDivに直接appendする形だが、editableContentContainerの後ろに来る）
+            // タイプに応じた編集UIをquestionEditingAreaに追加
             if (questionData.type === 'radio' || questionData.type === 'yes_no_maybe' || questionData.type === 'maru_batsu') {
                 const optionsEditor = document.createElement('textarea');
                 optionsEditor.rows = 3;
                 optionsEditor.placeholder = '選択肢をカンマ区切りで入力してください (例: 選択肢1,選択肢2)';
                 optionsEditor.value = questionData.options ? questionData.options.join(',') : '';
                 optionsEditor.classList.add('w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'options-editor');
-                flexGrowDiv.appendChild(optionsEditor);
+                questionEditingArea.appendChild(optionsEditor);
             } else if (questionData.type === 'number_block') {
                 const minInput = document.createElement('input');
                 minInput.type = 'number';
                 minInput.placeholder = '最小値';
                 minInput.value = questionData.min !== undefined ? questionData.min : '';
                 minInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'min-input');
-                flexGrowDiv.appendChild(minInput);
+                questionEditingArea.appendChild(minInput);
 
                 const maxInput = document.createElement('input');
                 maxInput.type = 'number';
                 maxInput.placeholder = '最大値';
                 maxInput.value = questionData.max !== undefined ? questionData.max : '';
                 maxInput.classList.add('w-1/2', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-400', 'mt-2', 'max-input');
-                flexGrowDiv.appendChild(maxInput);
+                questionEditingArea.appendChild(maxInput);
             } else if (questionData.type === 'no_answer') {
-                // 回答なし形式の場合、特別な編集フィールドは不要
                 const infoText = document.createElement('p');
                 infoText.classList.add('text-sm', 'text-gray-500', 'mt-2');
                 infoText.textContent = 'この質問形式には回答欄がありません。';
-                flexGrowDiv.appendChild(infoText);
+                questionEditingArea.appendChild(infoText);
             }
 
 
             // コントロールボタン (保存/キャンセル) を更新
             const editControlsContainer = questionItem.querySelector('.absolute.flex');
             if (editControlsContainer) {
-                Array.from(editControlsContainer.children).forEach(child => child.remove()); // 元のボタンを削除
+                Array.from(editControlsContainer.children).forEach(child => child.remove());
 
                 const saveButton = document.createElement('button');
                 saveButton.textContent = '保存';
@@ -668,33 +796,28 @@
          * 質問の変更を保存する関数
          * @param {number} questionId - 変更を保存する質問のID
          */
-        function saveQuestionChanges(questionId) {
+        async function saveQuestionChanges(questionId) {
             const questionItem = document.querySelector(`.question-item[data-question-id="${questionId}"]`);
             if (!questionItem) return;
 
             const questionTextEditor = questionItem.querySelector('.question-text-editor');
             const imageFileInput = questionItem.querySelector('.question-image-input');
-            const typeSelect = questionItem.querySelector('.question-type-editor'); // 正しいセレクタを使用
+            const typeSelect = questionItem.querySelector('.question-type-editor');
 
             const qIndex = currentQuestionsData.findIndex(q => q.id === questionId);
             if (qIndex === -1) return;
 
-            // 質問形式の更新
             currentQuestionsData[qIndex].type = typeSelect ? typeSelect.value : currentQuestionsData[qIndex].type;
 
-            // 質問文の更新
             if (questionTextEditor) {
                 currentQuestionsData[qIndex].text = questionTextEditor.value;
             }
 
-            // answerIdの処理: typeがtext, textarea, yes_no_maybe, maru_batsu, number_blockの場合にのみ設定/維持する
-            // no_answerの場合はanswerIdを削除する
             if (currentQuestionsData[qIndex].type === 'text' ||
                 currentQuestionsData[qIndex].type === 'textarea' ||
                 currentQuestionsData[qIndex].type === 'yes_no_maybe' ||
                 currentQuestionsData[qIndex].type === 'maru_batsu' ||
                 currentQuestionsData[qIndex].type === 'number_block') {
-                // answerIdがまだ存在しない場合のみ設定
                 if (!currentQuestionsData[qIndex].answerId) {
                     currentQuestionsData[qIndex].answerId = `question${currentQuestionsData[qIndex].id}Answer`;
                 }
@@ -702,24 +825,21 @@
                 delete currentQuestionsData[qIndex].answerId;
             }
 
-
-            // 各質問タイプに応じたデータの更新
             if (currentQuestionsData[qIndex].type === 'radio' || currentQuestionsData[qIndex].type === 'yes_no_maybe' || currentQuestionsData[qIndex].type === 'maru_batsu') {
                 const optionsEditor = questionItem.querySelector('.options-editor');
                 if (optionsEditor) {
                     currentQuestionsData[qIndex].options = optionsEditor.value.split(',').map(s => s.trim()).filter(s => s !== '');
-                } else { // optionsEditorが存在しない場合のデフォルト設定
+                } else {
                     if (currentQuestionsData[qIndex].type === 'radio') currentQuestionsData[qIndex].options = ['選択肢1', '選択肢2'];
                     else if (currentQuestionsData[qIndex].type === 'yes_no_maybe') currentQuestionsData[qIndex].options = ['YES', 'NO', 'MAYBE'];
                     else if (currentQuestionsData[qIndex].type === 'maru_batsu') currentQuestionsData[qIndex].options = ['〇', '✕'];
                 }
-                // radioタイプのみanswerNameを保持
                 if (currentQuestionsData[qIndex].type === 'radio' && !currentQuestionsData[qIndex].answerName) {
                     currentQuestionsData[qIndex].answerName = `q${currentQuestionsData[qIndex].id}_choice`;
                 } else if (currentQuestionsData[qIndex].type !== 'radio' && currentQuestionsData[qIndex].answerName) {
                     delete currentQuestionsData[qIndex].answerName;
                 }
-            } else { // 他のタイプではoptions, answerNameは不要
+            } else {
                 delete currentQuestionsData[qIndex].options;
                 delete currentQuestionsData[qIndex].answerName;
             }
@@ -730,29 +850,28 @@
                 if (minInput && maxInput) {
                     currentQuestionsData[qIndex].min = parseInt(minInput.value) || 0;
                     currentQuestionsData[qIndex].max = parseInt(maxInput.value) || 0;
-                } else if (currentQuestionsData[qIndex].min === undefined) { // min/maxがない場合のデフォルト
+                } else if (currentQuestionsData[qIndex].min === undefined) {
                     currentQuestionsData[qIndex].min = 1;
                     currentQuestionsData[qIndex].max = 10;
                 }
-            } else { // 他のタイプではmin/maxは不要
+            } else {
                 delete currentQuestionsData[qIndex].min;
                 delete currentQuestionsData[qIndex].max;
             }
 
-            // 画像の更新
             if (imageFileInput && imageFileInput.files.length > 0) {
                 const file = imageFileInput.files[0];
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    currentQuestionsData[qIndex].image = e.target.result; // Base64データURLとして保存
-                    saveQuestionsToLocalStorage(currentQuestionsData); // LocalStorageに保存
-                    renderQuestions(); // UIを再レンダリング
+                reader.onload = async (e) => {
+                    currentQuestionsData[qIndex].image = e.target.result;
+                    await saveQuestionsToIndexDB(currentQuestionsData);
+                    renderQuestions();
                     showMessageBox('質問が保存されました。');
                 };
                 reader.readAsDataURL(file);
             } else {
-                saveQuestionsToLocalStorage(currentQuestionsData); // LocalStorageに保存
-                renderQuestions(); // UIを再レンダリング
+                await saveQuestionsToIndexDB(currentQuestionsData);
+                renderQuestions();
                 showMessageBox('質問が保存されました。');
             }
         }
@@ -775,12 +894,16 @@
          * @param {number} questionId - 削除する質問のID
          */
         function deleteQuestion(questionId) {
-            if (confirm('この質問を削除してもよろしいですか？')) {
-                currentQuestionsData = currentQuestionsData.filter(q => q.id !== questionId);
-                saveQuestionsToLocalStorage(currentQuestionsData);
-                renderQuestions();
-                showMessageBox('質問が削除されました。');
-            }
+            showConfirmationModal('この質問を削除してもよろしいですか？', async (confirmed) => {
+                if (confirmed) {
+                    currentQuestionsData = currentQuestionsData.filter(q => q.id !== questionId);
+                    await saveQuestionsToIndexDB(currentQuestionsData);
+                    renderQuestions();
+                    showMessageBox('質問が削除されました。');
+                } else {
+                    showMessageBox('質問の削除がキャンセルされました。');
+                }
+            });
         }
 
         /**
@@ -788,7 +911,7 @@
          * @param {number} questionId - 移動する質問のID
          * @param {number} direction - 移動方向 (1:下へ, -1:上へ)
          */
-        function moveQuestion(questionId, direction) {
+        async function moveQuestion(questionId, direction) {
             const index = currentQuestionsData.findIndex(q => q.id === questionId);
             if (index === -1) return;
 
@@ -796,7 +919,7 @@
             if (newIndex >= 0 && newIndex < currentQuestionsData.length) {
                 const [movedQuestion] = currentQuestionsData.splice(index, 1); // 質問を切り取り
                 currentQuestionsData.splice(newIndex, 0, movedQuestion); // 新しい位置に挿入
-                saveQuestionsToLocalStorage(currentQuestionsData);
+                await saveQuestionsToIndexDB(currentQuestionsData);
                 renderQuestions();
                 showMessageBox('質問の順序が変更されました。');
             }
@@ -805,7 +928,7 @@
         /**
          * 新規質問を追加する関数
          */
-        function addNewQuestion() {
+        async function addNewQuestion() {
             const newId = currentQuestionsData.length > 0 ? Math.max(...currentQuestionsData.map(q => q.id)) + 1 : 1;
             const newQuestion = {
                 id: newId,
@@ -815,41 +938,39 @@
                 answerId: `question${newId}Answer`
             };
             currentQuestionsData.push(newQuestion);
-            saveQuestionsToLocalStorage(currentQuestionsData);
+            await saveQuestionsToIndexDB(currentQuestionsData);
             renderQuestions();
             showMessageBox('新しい質問が追加されました。');
         }
 
-
         /**
-         * 質問データをLocalStorageに保存する関数
+         * 質問データをIndexedDBに保存する関数
          * @param {Array} data - 保存する質問データ配列
          */
-        function saveQuestionsToLocalStorage(data) {
+        async function saveQuestionsToIndexDB(data) {
             try {
-                localStorage.setItem(`${APP_ID}_questionsData`, JSON.stringify(data));
-                console.log('質問データをLocalStorageに保存しました。');
+                await putData(QUESTIONS_STORE, `${APP_ID}_questions_data`, data);
+                console.log('質問データをIndexedDBに保存しました。');
             } catch (e) {
-                console.error('LocalStorageへの保存に失敗しました:', e);
-                showMessageBox('質問データの保存に失敗しました。ブラウザのストレージが上限に達している可能性があります。', true);
+                console.error('IndexedDBへの保存に失敗しました:', e);
+                showMessageBox('質問データの保存に失敗しました。', true);
             }
         }
 
         /**
-         * 質問データをLocalStorageから読み込む関数
-         * @returns {Array|null} 読み込んだ質問データ配列、またはnull
+         * 質問データをIndexedDBから読み込む関数
+         * @returns {Promise<Array|null>} 読み込んだ質問データ配列、またはnull
          */
-        function loadQuestionsFromLocalStorage() {
+        async function loadQuestionsFromIndexDB() {
             try {
-                const storedData = localStorage.getItem(`${APP_ID}_questionsData`);
+                const storedData = await getData(QUESTIONS_STORE, `${APP_ID}_questions_data`);
                 if (storedData) {
-                    const parsedData = JSON.parse(storedData);
-                    console.log('質問データをLocalStorageから読み込みました。');
-                    return parsedData;
+                    console.log('質問データをIndexedDBから読み込みました。');
+                    return storedData;
                 }
             } catch (e) {
-                console.error('LocalStorageからの読み込みに失敗しました:', e);
-                showMessageBox('質問データの読み込みに失敗しました。データが破損している可能性があります。', true);
+                console.error('IndexedDBからの読み込みに失敗しました:', e);
+                showMessageBox('質問データの読み込みに失敗しました。', true);
             }
             return null;
         }
@@ -857,7 +978,7 @@
         /**
          * 現在の回答内容を一時保存する関数
          */
-        function saveTemporaryAnswers() {
+        async function saveTemporaryAnswersToIndexDB() {
             const tempAnswers = {};
             currentQuestionsData.forEach(q => {
                 let answer = '';
@@ -872,30 +993,28 @@
                         answer = checkedRadio.value;
                     }
                 }
-                // no_answerタイプも空文字列を保存
                 tempAnswers[q.id] = answer;
             });
             try {
-                localStorage.setItem(`${APP_ID}_temporaryAnswers`, JSON.stringify(tempAnswers));
+                await putData(ANSWERS_STORE, `${APP_ID}_temporary_answers`, tempAnswers);
                 showMessageBox('回答を一時保存しました。');
             } catch (e) {
                 console.error('一時回答の保存に失敗しました:', e);
-                showMessageBox('一時回答の保存に失敗しました。ブラウザのストレージが上限に達している可能性があります。', true);
+                showMessageBox('一時回答の保存に失敗しました。', true);
             }
         }
 
         /**
          * 一時保存された回答内容を復元する関数
          */
-        function loadTemporaryAnswers() {
+        async function loadTemporaryAnswersFromIndexDB() {
             try {
-                const storedTempAnswers = localStorage.getItem(`${APP_ID}_temporaryAnswers`);
+                const storedTempAnswers = await getData(ANSWERS_STORE, `${APP_ID}_temporary_answers`);
                 if (storedTempAnswers) {
-                    const tempAnswers = JSON.parse(storedTempAnswers);
                     let restoredCount = 0;
                     currentQuestionsData.forEach(q => {
-                        const answer = tempAnswers[q.id];
-                        if (answer !== undefined) { // answerがnull, undefined, "" の場合も考慮
+                        const answer = storedTempAnswers[q.id];
+                        if (answer !== undefined) {
                             if (q.type === 'text' || q.type === 'textarea') {
                                 const inputElement = document.getElementById(q.answerId);
                                 if (inputElement) {
@@ -912,8 +1031,6 @@
                                 const hiddenInput = document.getElementById(q.answerId);
                                 if (hiddenInput) {
                                     hiddenInput.value = answer;
-                                    // 対応するボタンの視覚的選択を復元
-                                    // 既存のリングクラスを全て削除してから適用
                                     const questionItem = document.querySelector(`.question-item[data-question-id="${q.id}"]`);
                                     if (questionItem) {
                                         questionItem.querySelectorAll('.q4-button').forEach(btn => {
@@ -959,7 +1076,6 @@
                                     }
                                 }
                             } else if (q.type === 'no_answer') {
-                                // 回答なし形式なので特にUIの復元は不要だが、回答が存在すれば復元カウント
                                 restoredCount++;
                             }
                         }
@@ -970,7 +1086,7 @@
                 }
             } catch (e) {
                 console.error('一時回答の復元に失敗しました:', e);
-                showMessageBox('一時回答の復元に失敗しました。データが破損している可能性があります。', true);
+                showMessageBox('一時回答の復元に失敗しました。', true);
             }
         }
 
@@ -1017,7 +1133,7 @@
             enlargedImage.src = ''; // 画像をクリア
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const backgroundMusic = document.getElementById('backgroundMusic');
             const musicToggleButton = document.getElementById('musicToggleButton');
             let isPlaying = true;
@@ -1056,7 +1172,7 @@
             const inputQuestionsButton = document.getElementById('inputQuestionsButton');
             const editQuestionsButton = document.getElementById('editQuestionsButton');
             const addNewQuestionButton = document.getElementById('addNewQuestionButton');
-            const temporarySaveButton = document.getElementById('temporarySaveButton'); // 新しいボタン
+            const temporarySaveButton = document.getElementById('temporarySaveButton');
 
 
             // --- 画像オーバーレイのイベントリスナー ---
@@ -1072,23 +1188,24 @@
 
             // 現在の日時をデフォルト値として設定
             const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // UTCからローカルタイムへのオフセットを調整
-            dateTimeInput.value = now.toISOString().slice(0, 16);
+            // datetime-localからdateに変更したため、slice(0, 10)で日付部分のみを抽出
+            dateTimeInput.value = now.toISOString().slice(0, 10);
 
-            // ページロード時に質問データを読み込み、レンダリング
-            const storedQuestions = loadQuestionsFromLocalStorage();
+            // ページロード時にIndexedDBから質問データを読み込み、レンダリング
+            await openDB(); // DBを最初に開く
+            const storedQuestions = await loadQuestionsFromIndexDB();
             if (storedQuestions && storedQuestions.length > 0) {
                 currentQuestionsData = storedQuestions;
             } else {
                 currentQuestionsData = initialQuestionsData;
-                saveQuestionsToLocalStorage(currentQuestionsData); // 初回ロード時に初期データを保存
+                await saveQuestionsToIndexDB(currentQuestionsData);
             }
             renderQuestions(); // 質問をレンダリング
-            loadTemporaryAnswers(); // 質問レンダリング後に一時保存された回答を復元
+            await loadTemporaryAnswersFromIndexDB(); // 質問レンダリング後に一時保存された回答を復元
 
 
             // 回答を保存ボタンのイベントリスナー
-            saveAnswersButton.addEventListener('click', function() {
+            saveAnswersButton.addEventListener('click', async function() {
                 // 日時を取得し、yy_mmdd形式にフォーマット
                 const selectedDateTime = new Date(dateTimeInput.value);
                 const year = String(selectedDateTime.getFullYear()).slice(-2);
@@ -1096,7 +1213,7 @@
                 const day = String(selectedDateTime.getDate()).padStart(2, '0');
                 const formattedDate = `${year}_${month}${day}`;
 
-                const answers = [];
+                const answers = {}; // 回答をオブジェクトとして保存
                 currentQuestionsData.forEach(q => {
                     let answer = '';
                     if (q.type === 'text' || q.type === 'yes_no_maybe' || q.type === 'maru_batsu' || q.type === 'number_block') {
@@ -1125,25 +1242,17 @@
                     } else if (q.type === 'no_answer') {
                         answer = ''; // 回答なし形式の場合は空文字列を保存
                     }
-                    answers.push(answer);
+                    answers[q.id] = answer; // 回答をオブジェクトに追加
                 });
 
-                // タブ区切り形式のデータを作成
-                const data = `${formattedDate}\t${answers.join('\t')}`;
-
-                // Blobを作成し、ダウンロードリンクを生成
-                const blob = new Blob([data], { type: 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-
-                // ダウンロード用のa要素を作成し、クリックしてダウンロード
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `回答データ_${formattedDate}.txt`; // ファイル名
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url); // URLを解放
-                showMessageBox('回答が保存されました。');
+                // 回答オブジェクトをIndexedDBに保存
+                try {
+                    await putData(ANSWERS_STORE, `${APP_ID}_${formattedDate}_answers`, answers); // 日付ごとのキーで保存
+                    showMessageBox('回答が保存されました。');
+                } catch (e) {
+                    console.error('回答の保存に失敗しました:', e);
+                    showMessageBox('回答の保存に失敗しました。', true);
+                }
             });
 
             // 「出力」ボタンのイベントリスナー
@@ -1188,13 +1297,13 @@
                 }
 
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     try {
                         const loadedData = JSON.parse(e.target.result);
                         if (loadedData.questions && Array.isArray(loadedData.questions)) {
                             currentQuestionsData = loadedData.questions;
                             renderQuestions();
-                            saveQuestionsToLocalStorage(currentQuestionsData);
+                            await saveQuestionsToIndexDB(currentQuestionsData);
                             showMessageBox('質問が正常に復元されました。');
                         } else {
                             showMessageBox('JSONファイルの形式が正しくありません。', true);
@@ -1213,7 +1322,7 @@
             });
 
             // 「編集」ボタンのイベントリスナー
-            editQuestionsButton.addEventListener('click', function() {
+            editQuestionsButton.addEventListener('click', async function() {
                 isEditMode = !isEditMode; // 編集モードを切り替える
                 if (isEditMode) {
                     editQuestionsButton.textContent = '編集モード終了';
@@ -1224,7 +1333,7 @@
                     editQuestionsButton.textContent = '編集';
                     editQuestionsButton.classList.remove('bg-orange-600', 'hover:bg-orange-700');
                     editQuestionsButton.classList.add('bg-gray-600', 'hover:bg-gray-700');
-                    saveQuestionsToLocalStorage(currentQuestionsData); // 編集モード終了時に保存
+                    await saveQuestionsToIndexDB(currentQuestionsData); // 編集モード終了時に保存
                     showMessageBox('編集モードを終了しました。変更が保存されました。');
                 }
                 renderQuestions(); // 編集モードの切り替えに合わせて質問を再レンダリング
@@ -1234,8 +1343,10 @@
             addNewQuestionButton.addEventListener('click', addNewQuestion);
 
             // 「一時保存」ボタンのイベントリスナー
-            temporarySaveButton.addEventListener('click', saveTemporaryAnswers);
+            temporarySaveButton.addEventListener('click', saveTemporaryAnswersToIndexDB);
         });
     </script>
 </body>
 </html>
+
+

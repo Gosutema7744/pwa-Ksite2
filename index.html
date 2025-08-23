@@ -198,9 +198,26 @@ if($.cookie("hoge2")) {
 })
 
 
+// ページが読み込まれたら保存済みメモを表示
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('myMemo') || '';
+  document.getElementById('memo').value = saved;
+});
+
+// 保存ボタンのクリックで localStorage にセット
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const text = document.getElementById('memo').value;
+  localStorage.setItem('myMemo', text);
+
+  const status = document.getElementById('status');
+  status.textContent = '保存しました！';
+  setTimeout(() => { status.textContent = ''; }, 2000);
+});
+
 
 </script>
 		
 </body>
 </html>
+
 
